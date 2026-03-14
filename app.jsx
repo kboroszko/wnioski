@@ -4,14 +4,14 @@ import { createRoot } from 'react-dom/client';
 // ─── CONSTANTS ─────────────────────────────────────
 const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const SPECIALTY_COLORS = [
-  { bg: 'rgba(108,140,255,0.12)', color: '#6c8cff', border: 'rgba(108,140,255,0.25)' },
-  { bg: 'rgba(168,139,250,0.12)', color: '#a78bfa', border: 'rgba(168,139,250,0.25)' },
-  { bg: 'rgba(52,211,153,0.12)', color: '#34d399', border: 'rgba(52,211,153,0.25)' },
-  { bg: 'rgba(251,146,60,0.12)', color: '#fb923c', border: 'rgba(251,146,60,0.25)' },
-  { bg: 'rgba(248,113,113,0.12)', color: '#f87171', border: 'rgba(248,113,113,0.25)' },
-  { bg: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: 'rgba(56,189,248,0.25)' },
-  { bg: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: 'rgba(251,191,36,0.25)' },
-  { bg: 'rgba(244,114,182,0.12)', color: '#f472b6', border: 'rgba(244,114,182,0.25)' },
+  { bg: 'rgba(59,90,214,0.1)', color: '#3b5ad6', border: 'rgba(59,90,214,0.25)' },
+  { bg: 'rgba(124,99,221,0.1)', color: '#7c63dd', border: 'rgba(124,99,221,0.25)' },
+  { bg: 'rgba(22,163,74,0.1)', color: '#16a34a', border: 'rgba(22,163,74,0.25)' },
+  { bg: 'rgba(217,119,6,0.1)', color: '#d97706', border: 'rgba(217,119,6,0.25)' },
+  { bg: 'rgba(220,38,38,0.1)', color: '#dc2626', border: 'rgba(220,38,38,0.25)' },
+  { bg: 'rgba(14,116,144,0.1)', color: '#0e7490', border: 'rgba(14,116,144,0.25)' },
+  { bg: 'rgba(161,98,7,0.1)', color: '#a16207', border: 'rgba(161,98,7,0.25)' },
+  { bg: 'rgba(190,24,93,0.1)', color: '#be185d', border: 'rgba(190,24,93,0.25)' },
 ];
 
 // ─── INTERVAL MATH ─────────────────────────────────
@@ -237,6 +237,42 @@ function getSpecialtyColorMap(doctors, requirements, quotas) {
 
 // ─── COMPONENTS ────────────────────────────────────
 
+function TimeInput({ value, onChange, className, style }) {
+  const handleChange = (e) => {
+    let v = e.target.value.replace(/[^\d:]/g, '');
+    // Auto-insert colon after 2 digits
+    if (v.length === 2 && !v.includes(':') && value.length < v.length) {
+      v = v + ':';
+    }
+    if (v.length > 5) v = v.slice(0, 5);
+    onChange(v);
+  };
+
+  const handleBlur = () => {
+    // Normalize on blur: pad and clamp
+    const parts = value.split(':');
+    let h = parseInt(parts[0], 10) || 0;
+    let m = parseInt(parts[1], 10) || 0;
+    h = Math.min(23, Math.max(0, h));
+    m = Math.min(59, Math.max(0, m));
+    onChange(String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0'));
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      placeholder="HH:MM"
+      maxLength={5}
+      value={value}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={className}
+      style={{ width: 70, textAlign: 'center', fontFamily: 'var(--mono)', fontSize: '0.85rem', ...style }}
+    />
+  );
+}
+
 function TimeBlockEditor({ blocks, onChange, disabled }) {
   const [adding, setAdding] = useState(false);
   const [newStart, setNewStart] = useState('08:00');
@@ -267,9 +303,9 @@ function TimeBlockEditor({ blocks, onChange, disabled }) {
       )}
       {!disabled && adding && (
         <span className="add-block-inline">
-          <input type="time" value={newStart} onChange={e => setNewStart(e.target.value)} />
+          <TimeInput value={newStart} onChange={setNewStart} />
           <span style={{color:'var(--text-muted)'}}>→</span>
-          <input type="time" value={newEnd} onChange={e => setNewEnd(e.target.value)} />
+          <TimeInput value={newEnd} onChange={setNewEnd} />
           <button className="btn btn-sm btn-primary" onClick={addBlock}>Add</button>
           <button className="btn btn-sm btn-ghost" onClick={() => setAdding(false)}>✕</button>
         </span>
@@ -343,11 +379,11 @@ function SpecialRequirementEditor({ requirements, onChange }) {
             <div className="form-group" style={{marginBottom:0}}>
               <label className="form-label">Time</label>
               <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                <input type="time" value={req.timeBlock.start}
-                  onChange={e => updateReq(idx, { timeBlock: { ...req.timeBlock, start: e.target.value }})} />
+                <TimeInput value={req.timeBlock.start}
+                  onChange={v => updateReq(idx, { timeBlock: { ...req.timeBlock, start: v }})} />
                 <span style={{color:'var(--text-muted)'}}>→</span>
-                <input type="time" value={req.timeBlock.end}
-                  onChange={e => updateReq(idx, { timeBlock: { ...req.timeBlock, end: e.target.value }})} />
+                <TimeInput value={req.timeBlock.end}
+                  onChange={v => updateReq(idx, { timeBlock: { ...req.timeBlock, end: v }})} />
               </div>
             </div>
           </div>
