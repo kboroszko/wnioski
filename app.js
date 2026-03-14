@@ -1,0 +1,852 @@
+const { useState, useCallback, useMemo, useRef, useEffect } = React;
+
+// ─── CONSTANTS ─────────────────────────────────────
+const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const SPECIALTY_COLORS = [
+  { bg: 'rgba(108,140,255,0.12)', color: '#6c8cff', border: 'rgba(108,140,255,0.25)' },
+  { bg: 'rgba(168,139,250,0.12)', color: '#a78bfa', border: 'rgba(168,139,250,0.25)' },
+  { bg: 'rgba(52,211,153,0.12)', color: '#34d399', border: 'rgba(52,211,153,0.25)' },
+  { bg: 'rgba(251,146,60,0.12)', color: '#fb923c', border: 'rgba(251,146,60,0.25)' },
+  { bg: 'rgba(248,113,113,0.12)', color: '#f87171', border: 'rgba(248,113,113,0.25)' },
+  { bg: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: 'rgba(56,189,248,0.25)' },
+  { bg: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: 'rgba(251,191,36,0.25)' },
+  { bg: 'rgba(244,114,182,0.12)', color: '#f472b6', border: 'rgba(244,114,182,0.25)' },
+];
+
+// ─── INTERVAL MATH ─────────────────────────────────
+function toMinutes(hhmm) {
+  if (!hhmm) return 0;
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function toTimeString(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+}
+
+function mergeIntervals(blocks) {
+  if (!blocks || blocks.length === 0) return [];
+  const sorted = blocks.map(b => ({ s: toMinutes(b.start), e: toMinutes(b.end) }))
+    .filter(b => b.e > b.s).sort((a,b) => a.s - b.s);
+  if (sorted.length === 0) return [];
+  const merged = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const last = merged[merged.length - 1];
+    if (sorted[i].s <= last.e) {
+      last.e = Math.max(last.e, sorted[i].e);
+    } else {
+      merged.push(sorted[i]);
+    }
+  }
+  return merged.map(b => ({ start: toTimeString(b.s), end: toTimeString(b.e) }));
+}
+
+function intersectIntervals(a, b) {
+  if (!a || !b || a.length === 0 || b.length === 0) return [];
+  const sa = a.map(x => ({ s: toMinutes(x.start), e: toMinutes(x.end) })).sort((x,y) => x.s - y.s);
+  const sb = b.map(x => ({ s: toMinutes(x.start), e: toMinutes(x.end) })).sort((x,y) => x.s - y.s);
+  const result = [];
+  let i = 0, j = 0;
+  while (i < sa.length && j < sb.length) {
+    const lo = Math.max(sa[i].s, sb[j].s);
+    const hi = Math.min(sa[i].e, sb[j].e);
+    if (lo < hi) result.push({ start: toTimeString(lo), end: toTimeString(hi) });
+    if (sa[i].e < sb[j].e) i++; else j++;
+  }
+  return result;
+}
+
+function subtractIntervals(a, b) {
+  if (!a || a.length === 0) return [];
+  if (!b || b.length === 0) return [...a];
+  let result = a.map(x => ({ s: toMinutes(x.start), e: toMinutes(x.end) }));
+  const cuts = b.map(x => ({ s: toMinutes(x.start), e: toMinutes(x.end) })).sort((x,y) => x.s - y.s);
+  for (const cut of cuts) {
+    const next = [];
+    for (const seg of result) {
+      if (seg.e <= cut.s || seg.s >= cut.e) { next.push(seg); continue; }
+      if (seg.s < cut.s) next.push({ s: seg.s, e: cut.s });
+      if (seg.e > cut.e) next.push({ s: cut.e, e: seg.e });
+    }
+    result = next;
+  }
+  return result.filter(b => b.e > b.s).map(b => ({ start: toTimeString(b.s), end: toTimeString(b.e) }));
+}
+
+function coversInterval(union, target) {
+  const merged = mergeIntervals(union);
+  const ts = toMinutes(target.start), te = toMinutes(target.end);
+  for (const b of merged) {
+    if (toMinutes(b.start) <= ts && toMinutes(b.end) >= te) return true;
+  }
+  return false;
+}
+
+function sumMinutes(blocks) {
+  if (!blocks) return 0;
+  return blocks.reduce((s, b) => s + (toMinutes(b.end) - toMinutes(b.start)), 0);
+}
+
+function formatBlocks(blocks) {
+  if (!blocks || blocks.length === 0) return '—';
+  return blocks.map(b => `${b.start}–${b.end}`).join(', ');
+}
+
+function uuid() {
+  return 'xxxx-xxxx'.replace(/x/g, () => ((Math.random()*16)|0).toString(16));
+}
+
+// ─── SOLVER ────────────────────────────────────────
+function runSolver(facility, doctors) {
+  const errors = [];
+  if (!doctors || doctors.length === 0) {
+    return { success: false, errors: ['No doctors assigned.'] };
+  }
+
+  // Phase 1: Clamp
+  const effectiveSchedules = doctors.map(doc => {
+    const effective = [];
+    let hasClamp = false;
+    for (let day = 0; day < 7; day++) {
+      const facDay = facility.openingHours[day];
+      const docDay = doc.availability[day];
+      if (!facDay.enabled || !docDay.blocks || docDay.blocks.length === 0) {
+        effective.push({ day, blocks: [] });
+        if (docDay.blocks && docDay.blocks.length > 0 && !facDay.enabled) {
+          // doctor available on closed day
+        }
+        continue;
+      }
+      const facBlocks = mergeIntervals(facDay.blocks);
+      const docBlocks = mergeIntervals(docDay.blocks);
+      const clamped = intersectIntervals(docBlocks, facBlocks);
+      const outside = subtractIntervals(docBlocks, facBlocks);
+      if (outside.length > 0) hasClamp = true;
+      effective.push({ day, blocks: clamped, outside });
+    }
+    return { doctor: doc, effective, hasClamp };
+  });
+
+  // Phase 2: Mandatory Coverage
+  for (let day = 0; day < 7; day++) {
+    const facDay = facility.openingHours[day];
+    if (!facDay.enabled) continue;
+    const facBlocks = mergeIntervals(facDay.blocks);
+    const allDocBlocks = [];
+    effectiveSchedules.forEach(es => {
+      es.effective[day].blocks.forEach(b => allDocBlocks.push(b));
+    });
+    const union = mergeIntervals(allDocBlocks);
+    for (const fb of facBlocks) {
+      const gaps = subtractIntervals([fb], union);
+      for (const gap of gaps) {
+        errors.push(`No doctor coverage on ${DAYS[day]} from ${gap.start} to ${gap.end}`);
+      }
+    }
+  }
+
+  // Phase 3: Special Requirements
+  for (const req of (facility.specialRequirements || [])) {
+    for (const day of req.days) {
+      const facDay = facility.openingHours[day];
+      if (!facDay.enabled) continue;
+      const matching = effectiveSchedules.filter(es => es.doctor.specialty === req.specialty);
+      if (matching.length === 0) {
+        errors.push(`Specialty "${req.specialty}" not covered on ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end} — no doctors with this specialty`);
+        continue;
+      }
+      const matchBlocks = [];
+      matching.forEach(es => { es.effective[day].blocks.forEach(b => matchBlocks.push(b)); });
+      if (!coversInterval(mergeIntervals(matchBlocks), req.timeBlock)) {
+        errors.push(`Specialty "${req.specialty}" not covered on ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end}`);
+      }
+    }
+  }
+
+  // Phase 4: Hour Quotas
+  for (const quota of (facility.hourQuotas || [])) {
+    if (quota.minHoursPerWeek <= 0) continue;
+    let totalMins = 0;
+    effectiveSchedules.forEach(es => {
+      if (es.doctor.specialty === quota.specialty) {
+        es.effective.forEach(d => { totalMins += sumMinutes(d.blocks); });
+      }
+    });
+    const totalHrs = totalMins / 60;
+    if (totalHrs < quota.minHoursPerWeek) {
+      errors.push(`Specialty "${quota.specialty}" has ${totalHrs.toFixed(1)}h allocated but requires ${quota.minHoursPerWeek}h minimum`);
+    }
+  }
+
+  if (errors.length > 0) return { success: false, errors };
+
+  // Phase 5: Build plan
+  const plan = effectiveSchedules.map(es => {
+    let totalMins = 0;
+    const weekSchedule = es.effective.map(d => {
+      totalMins += sumMinutes(d.blocks);
+      return d.blocks;
+    });
+    return {
+      doctorId: es.doctor.id,
+      doctorName: es.doctor.name,
+      specialty: es.doctor.specialty,
+      weekSchedule,
+      totalWeeklyHours: totalMins / 60,
+      hasClamp: es.hasClamp,
+    };
+  });
+
+  return { success: true, plan };
+}
+
+// ─── DEFAULT STATE ─────────────────────────────────
+function makeDefaultFacility() {
+  return {
+    id: uuid(),
+    name: '',
+    roomCount: 1,
+    openingHours: Array.from({length:7}, (_,i) => ({
+      day: i,
+      enabled: i < 5,
+      blocks: i < 5 ? [{ start: '08:00', end: '17:00' }] : [],
+    })),
+    specialRequirements: [],
+    hourQuotas: [],
+  };
+}
+
+function makeDefaultState() {
+  return { version: 1, facility: makeDefaultFacility(), doctors: [], generatedPlan: null };
+}
+
+// ─── SPECIALTY COLOR HELPER ────────────────────────
+function getSpecialtyColorMap(doctors, requirements, quotas) {
+  const specs = new Set();
+  doctors.forEach(d => specs.add(d.specialty));
+  requirements.forEach(r => specs.add(r.specialty));
+  quotas.forEach(q => specs.add(q.specialty));
+  const map = {};
+  let i = 0;
+  specs.forEach(s => { if (s) { map[s] = SPECIALTY_COLORS[i % SPECIALTY_COLORS.length]; i++; } });
+  return map;
+}
+
+// ─── COMPONENTS ────────────────────────────────────
+
+function TimeBlockEditor({ blocks, onChange, disabled }) {
+  const [adding, setAdding] = useState(false);
+  const [newStart, setNewStart] = useState('08:00');
+  const [newEnd, setNewEnd] = useState('17:00');
+
+  const addBlock = () => {
+    if (newStart && newEnd && toMinutes(newEnd) > toMinutes(newStart)) {
+      const merged = mergeIntervals([...blocks, { start: newStart, end: newEnd }]);
+      onChange(merged);
+      setAdding(false);
+    }
+  };
+
+  const removeBlock = (idx) => {
+    onChange(blocks.filter((_,i) => i !== idx));
+  };
+
+  return (
+    <div className="time-blocks">
+      {blocks.map((b, i) => (
+        <span key={i} className="time-block-chip">
+          {b.start}–{b.end}
+          {!disabled && <span className="remove" onClick={() => removeBlock(i)}>✕</span>}
+        </span>
+      ))}
+      {!disabled && !adding && (
+        <button className="btn btn-sm btn-ghost" onClick={() => setAdding(true)}>+ Block</button>
+      )}
+      {!disabled && adding && (
+        <span className="add-block-inline">
+          <input type="time" value={newStart} onChange={e => setNewStart(e.target.value)} />
+          <span style={{color:'var(--text-muted)'}}>→</span>
+          <input type="time" value={newEnd} onChange={e => setNewEnd(e.target.value)} />
+          <button className="btn btn-sm btn-primary" onClick={addBlock}>Add</button>
+          <button className="btn btn-sm btn-ghost" onClick={() => setAdding(false)}>✕</button>
+        </span>
+      )}
+      {blocks.length === 0 && !adding && <span style={{color:'var(--text-muted)', fontSize:'0.8rem'}}>No blocks</span>}
+    </div>
+  );
+}
+
+function DayScheduleEditor({ schedule, onChange }) {
+  return (
+    <div>
+      {schedule.map((ds, i) => (
+        <div key={i} className={`day-row ${!ds.enabled ? 'disabled' : ''}`}>
+          <span className="day-lbl" style={{width:40,flexShrink:0,fontWeight:600,fontSize:'0.85rem',color:'var(--text-dim)',paddingTop:4}}>{DAYS[i]}</span>
+          <div className="toggle-row" style={{flexShrink:0}}>
+            <div className={`toggle ${ds.enabled ? 'on' : ''}`}
+              onClick={() => {
+                const next = [...schedule];
+                next[i] = { ...next[i], enabled: !next[i].enabled };
+                onChange(next);
+              }} />
+          </div>
+          {ds.enabled && (
+            <TimeBlockEditor
+              blocks={ds.blocks}
+              onChange={(blocks) => {
+                const next = [...schedule];
+                next[i] = { ...next[i], blocks };
+                onChange(next);
+              }}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SpecialRequirementEditor({ requirements, onChange }) {
+  const addReq = () => {
+    onChange([...requirements, {
+      id: uuid(), specialty: '', days: [], timeBlock: { start: '08:00', end: '17:00' },
+    }]);
+  };
+  const updateReq = (idx, patch) => {
+    const next = [...requirements];
+    next[idx] = { ...next[idx], ...patch };
+    onChange(next);
+  };
+  const removeReq = (idx) => onChange(requirements.filter((_,i) => i !== idx));
+  const toggleDay = (idx, day) => {
+    const cur = requirements[idx].days;
+    updateReq(idx, { days: cur.includes(day) ? cur.filter(d => d !== day) : [...cur, day].sort() });
+  };
+
+  return (
+    <div>
+      {requirements.map((req, idx) => (
+        <div key={req.id} className="req-card">
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
+            <span style={{fontWeight:600,fontSize:'0.85rem'}}>Requirement #{idx+1}</span>
+            <button className="btn btn-sm btn-danger btn-ghost" onClick={() => removeReq(idx)}>Remove</button>
+          </div>
+          <div className="form-row" style={{marginBottom:10}}>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Specialty</label>
+              <input type="text" value={req.specialty} onChange={e => updateReq(idx, { specialty: e.target.value })}
+                placeholder="e.g. Cardiology" />
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Time</label>
+              <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                <input type="time" value={req.timeBlock.start}
+                  onChange={e => updateReq(idx, { timeBlock: { ...req.timeBlock, start: e.target.value }})} />
+                <span style={{color:'var(--text-muted)'}}>→</span>
+                <input type="time" value={req.timeBlock.end}
+                  onChange={e => updateReq(idx, { timeBlock: { ...req.timeBlock, end: e.target.value }})} />
+              </div>
+            </div>
+          </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Days</label>
+            <div className="checkbox-group">
+              {DAYS.map((d, di) => (
+                <span key={di}
+                  className={`checkbox-pill ${req.days.includes(di) ? 'checked' : ''}`}
+                  onClick={() => toggleDay(idx, di)}>{d}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      ))}
+      <button className="btn btn-sm" onClick={addReq}>+ Add Requirement</button>
+    </div>
+  );
+}
+
+function HourQuotaEditor({ quotas, onChange }) {
+  const addQuota = () => {
+    onChange([...quotas, { id: uuid(), specialty: '', minHoursPerWeek: 0 }]);
+  };
+  const updateQuota = (idx, patch) => {
+    const next = [...quotas];
+    next[idx] = { ...next[idx], ...patch };
+    onChange(next);
+  };
+  const removeQuota = (idx) => onChange(quotas.filter((_,i) => i !== idx));
+
+  return (
+    <div>
+      {quotas.map((q, idx) => (
+        <div key={q.id} className="quota-card">
+          <div style={{display:'flex',gap:10,alignItems:'flex-end'}}>
+            <div style={{flex:1}}>
+              <label className="form-label">Specialty</label>
+              <input type="text" value={q.specialty} onChange={e => updateQuota(idx, { specialty: e.target.value })}
+                placeholder="e.g. Radiology" />
+            </div>
+            <div style={{width:140}}>
+              <label className="form-label">Min Hours/Week</label>
+              <input type="number" min="0" step="0.5" value={q.minHoursPerWeek}
+                onChange={e => updateQuota(idx, { minHoursPerWeek: parseFloat(e.target.value) || 0 })} />
+            </div>
+            <button className="btn btn-sm btn-danger btn-ghost" style={{marginBottom:1}} onClick={() => removeQuota(idx)}>✕</button>
+          </div>
+        </div>
+      ))}
+      <button className="btn btn-sm" onClick={addQuota}>+ Add Quota</button>
+    </div>
+  );
+}
+
+// ─── TAB 1: FACILITY SETUP ────────────────────────
+function FacilityTab({ facility, onChange }) {
+  return (
+    <div>
+      <div className="card">
+        <div className="card-title"><span className="icon">🏥</span> Basic Info</div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Facility Name</label>
+            <input type="text" value={facility.name}
+              onChange={e => onChange({ ...facility, name: e.target.value })}
+              placeholder="City Medical Center" />
+          </div>
+          <div className="form-group" style={{maxWidth:160}}>
+            <label className="form-label">Rooms</label>
+            <input type="number" min="1" value={facility.roomCount}
+              onChange={e => onChange({ ...facility, roomCount: parseInt(e.target.value) || 1 })} />
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title"><span className="icon">🕐</span> Opening Hours</div>
+        <DayScheduleEditor schedule={facility.openingHours}
+          onChange={openingHours => onChange({ ...facility, openingHours })} />
+      </div>
+
+      <div className="card">
+        <div className="card-title"><span className="icon">⚕️</span> Special Requirements</div>
+        <p style={{fontSize:'0.82rem',color:'var(--text-muted)',marginBottom:14}}>
+          Define mandatory specialty coverage during specific time blocks and days.
+        </p>
+        <SpecialRequirementEditor requirements={facility.specialRequirements}
+          onChange={specialRequirements => onChange({ ...facility, specialRequirements })} />
+      </div>
+
+      <div className="card">
+        <div className="card-title"><span className="icon">📊</span> Weekly Hour Quotas</div>
+        <p style={{fontSize:'0.82rem',color:'var(--text-muted)',marginBottom:14}}>
+          Minimum total hours per week required for each specialty.
+        </p>
+        <HourQuotaEditor quotas={facility.hourQuotas}
+          onChange={hourQuotas => onChange({ ...facility, hourQuotas })} />
+      </div>
+    </div>
+  );
+}
+
+// ─── TAB 2: DOCTORS ────────────────────────────────
+function DoctorForm({ doctor, onSave, onCancel, facility }) {
+  const [form, setForm] = useState(doctor || {
+    id: uuid(), name: '', specialty: '',
+    availability: Array.from({length:7}, (_,i) => ({ day: i, blocks: [] })),
+  });
+
+  const update = (patch) => setForm(f => ({ ...f, ...patch }));
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-title">
+          {doctor ? '✏️ Edit Doctor' : '➕ Add Doctor'}
+        </div>
+        <div className="form-row" style={{marginBottom:16}}>
+          <div className="form-group">
+            <label className="form-label">Name</label>
+            <input type="text" value={form.name} onChange={e => update({ name: e.target.value })}
+              placeholder="Dr. Smith" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Specialty</label>
+            <input type="text" value={form.specialty} onChange={e => update({ specialty: e.target.value })}
+              placeholder="Cardiology" />
+          </div>
+        </div>
+        <div style={{marginBottom:20}}>
+          <label className="form-label" style={{marginBottom:10}}>Weekly Availability</label>
+          {form.availability.map((da, i) => {
+            const facBlocks = facility.openingHours[i].enabled ? facility.openingHours[i].blocks : [];
+            const outside = subtractIntervals(mergeIntervals(da.blocks), mergeIntervals(facBlocks));
+            return (
+              <div key={i} className="day-row">
+                <span className="day-lbl" style={{width:40,flexShrink:0,fontWeight:600,fontSize:'0.85rem',color:'var(--text-dim)',paddingTop:4}}>{DAYS[i]}</span>
+                <div style={{flex:1}}>
+                  <TimeBlockEditor
+                    blocks={da.blocks}
+                    onChange={(blocks) => {
+                      const next = [...form.availability];
+                      next[i] = { ...next[i], blocks: mergeIntervals(blocks) };
+                      update({ availability: next });
+                    }}
+                  />
+                  {outside.length > 0 && (
+                    <div style={{marginTop:4}}>
+                      {outside.map((b,j) => (
+                        <span key={j} className="time-block-chip warning" title="Outside facility hours — will be clamped">
+                          ⚠ {b.start}–{b.end}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+          <button className="btn" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-primary"
+            disabled={!form.name.trim() || !form.specialty.trim()}
+            onClick={() => onSave(form)}>
+            {doctor ? 'Save Changes' : 'Add Doctor'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DoctorCard({ doctor, facility, onEdit, onDelete, colorMap }) {
+  const sc = colorMap[doctor.specialty] || SPECIALTY_COLORS[0];
+  const warnings = [];
+  doctor.availability.forEach((da, i) => {
+    const facBlocks = facility.openingHours[i].enabled ? facility.openingHours[i].blocks : [];
+    const outside = subtractIntervals(mergeIntervals(da.blocks), mergeIntervals(facBlocks));
+    if (outside.length > 0) warnings.push(i);
+  });
+
+  // Compute total effective hours
+  let totalEffMins = 0;
+  doctor.availability.forEach((da, i) => {
+    const facBlocks = facility.openingHours[i].enabled ? facility.openingHours[i].blocks : [];
+    const effective = intersectIntervals(mergeIntervals(da.blocks), mergeIntervals(facBlocks));
+    totalEffMins += sumMinutes(effective);
+  });
+
+  return (
+    <div className="doctor-card">
+      <div className="doctor-header">
+        <div>
+          <div className="doctor-name">{doctor.name}</div>
+          <span className="specialty-tag" style={{background:sc.bg, color:sc.color, border:`1px solid ${sc.border}`, marginTop:4}}>
+            {doctor.specialty}
+          </span>
+        </div>
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          <span style={{fontFamily:'var(--mono)',fontSize:'0.85rem',color:'var(--accent)',fontWeight:600}}>
+            {(totalEffMins/60).toFixed(1)}h/wk
+          </span>
+          <button className="btn btn-sm btn-ghost" onClick={onEdit}>Edit</button>
+          <button className="btn btn-sm btn-danger btn-ghost" onClick={onDelete}>✕</button>
+        </div>
+      </div>
+      <div className="mini-schedule" style={{display:'grid',gridTemplateColumns:'40px 1fr',gap:'2px 10px'}}>
+        {doctor.availability.map((da, i) => {
+          const facBlocks = facility.openingHours[i].enabled ? facility.openingHours[i].blocks : [];
+          const effective = intersectIntervals(mergeIntervals(da.blocks), mergeIntervals(facBlocks));
+          const outside = subtractIntervals(mergeIntervals(da.blocks), mergeIntervals(facBlocks));
+          return (
+            <React.Fragment key={i}>
+              <span className="mini-schedule day-lbl">{DAYS[i]}</span>
+              <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                {effective.map((b,j) => (
+                  <span key={`e${j}`} className="time-block-chip">{b.start}–{b.end}</span>
+                ))}
+                {outside.map((b,j) => (
+                  <span key={`w${j}`} className="time-block-chip warning" title="Outside facility hours — will be clamped">
+                    ⚠ {b.start}–{b.end}
+                  </span>
+                ))}
+                {effective.length === 0 && outside.length === 0 && (
+                  <span style={{color:'var(--text-muted)',fontSize:'0.78rem'}}>—</span>
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+      {totalEffMins === 0 && (
+        <div style={{marginTop:10,padding:'6px 10px',background:'var(--orange-bg)',borderRadius:'var(--radius-sm)',color:'var(--orange)',fontSize:'0.8rem'}}>
+          ⚠ Zero effective hours — availability doesn't overlap with facility hours.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DoctorsTab({ doctors, facility, onUpdate }) {
+  const [editing, setEditing] = useState(null); // null | 'new' | doctor
+  const colorMap = useMemo(() =>
+    getSpecialtyColorMap(doctors, facility.specialRequirements, facility.hourQuotas),
+    [doctors, facility.specialRequirements, facility.hourQuotas]
+  );
+
+  const saveDoctor = (doc) => {
+    if (editing === 'new') {
+      onUpdate([...doctors, doc]);
+    } else {
+      onUpdate(doctors.map(d => d.id === doc.id ? doc : d));
+    }
+    setEditing(null);
+  };
+
+  const deleteDoctor = (id) => {
+    onUpdate(doctors.filter(d => d.id !== id));
+  };
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <div style={{color:'var(--text-dim)',fontSize:'0.88rem'}}>
+          {doctors.length} doctor{doctors.length !== 1 ? 's' : ''} configured
+        </div>
+        <button className="btn btn-primary" onClick={() => setEditing('new')}>+ Add Doctor</button>
+      </div>
+      {doctors.length === 0 && (
+        <div className="empty-state">
+          <div className="icon">👨‍⚕️</div>
+          <p>No doctors added yet. Add your first doctor to begin scheduling.</p>
+        </div>
+      )}
+      {doctors.map(d => (
+        <DoctorCard key={d.id} doctor={d} facility={facility}
+          onEdit={() => setEditing(d)} onDelete={() => deleteDoctor(d.id)}
+          colorMap={colorMap} />
+      ))}
+      {editing && (
+        <DoctorForm
+          doctor={editing === 'new' ? null : editing}
+          facility={facility}
+          onSave={saveDoctor}
+          onCancel={() => setEditing(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── TAB 3: PLAN ───────────────────────────────────
+function PlanTab({ facility, doctors }) {
+  const [result, setResult] = useState(null);
+  const colorMap = useMemo(() =>
+    getSpecialtyColorMap(doctors, facility.specialRequirements, facility.hourQuotas),
+    [doctors, facility.specialRequirements, facility.hourQuotas]
+  );
+
+  const generate = () => {
+    setResult(runSolver(facility, doctors));
+  };
+
+  return (
+    <div>
+      <div style={{textAlign:'center',marginBottom:24}}>
+        <button className="btn btn-primary" style={{padding:'12px 32px',fontSize:'1rem'}} onClick={generate}>
+          ⚡ Generate Plan
+        </button>
+      </div>
+
+      {result && !result.success && (
+        <div className="card">
+          <div className="card-title" style={{color:'var(--red)'}}>
+            <span className="icon">❌</span> Plan Generation Failed
+          </div>
+          {result.errors.map((err, i) => (
+            <div key={i} className="error-item">{err}</div>
+          ))}
+        </div>
+      )}
+
+      {result && result.success && (
+        <div>
+          <div className="success-banner">
+            <span>✅</span> Plan generated successfully — {result.plan.length} doctor{result.plan.length !== 1 ? 's' : ''} scheduled
+          </div>
+          <div className="card" style={{padding:0,overflow:'hidden'}}>
+            <div style={{padding:'16px 20px',borderBottom:'1px solid var(--border)'}}>
+              <div style={{fontWeight:700,fontSize:'1.05rem'}}>{facility.name || 'Facility'}</div>
+              <div style={{fontSize:'0.82rem',color:'var(--text-dim)',marginTop:2}}>
+                {facility.openingHours.filter(d => d.enabled).map((d,i) => DAYS[d.day]).join(', ')}
+                {' · '}
+                {facility.roomCount} room{facility.roomCount !== 1 ? 's' : ''}
+              </div>
+            </div>
+            <div className="plan-table-wrap">
+              <table className="plan-table">
+                <thead>
+                  <tr>
+                    <th>Doctor</th>
+                    <th>Specialty</th>
+                    {DAYS.map(d => <th key={d}>{d}</th>)}
+                    <th>Hours/Wk</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.plan.map((p, i) => {
+                    const sc = colorMap[p.specialty] || SPECIALTY_COLORS[0];
+                    return (
+                      <tr key={i}>
+                        <td style={{fontWeight:600,whiteSpace:'nowrap'}}>{p.doctorName}</td>
+                        <td>
+                          <span className="specialty-tag" style={{background:sc.bg, color:sc.color, border:`1px solid ${sc.border}`}}>
+                            {p.specialty}
+                          </span>
+                        </td>
+                        {p.weekSchedule.map((blocks, d) => (
+                          <td key={d} className="time-cell">
+                            {blocks.length === 0 ? <span style={{color:'var(--text-muted)'}}>—</span> :
+                              blocks.map((b,j) => <span key={j}>{b.start}–{b.end}</span>)}
+                          </td>
+                        ))}
+                        <td className="hours-cell">{p.totalWeeklyHours.toFixed(1)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={2} style={{fontWeight:600}}>Total</td>
+                    {DAYS.map((d, di) => {
+                      const dayMins = result.plan.reduce((s,p) => s + sumMinutes(p.weekSchedule[di]), 0);
+                      return <td key={di} className="time-cell" style={{fontWeight:500}}>{dayMins > 0 ? `${(dayMins/60).toFixed(1)}h` : '—'}</td>;
+                    })}
+                    <td className="hours-cell" style={{fontSize:'1rem'}}>
+                      {result.plan.reduce((s,p) => s + p.totalWeeklyHours, 0).toFixed(1)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!result && (
+        <div className="empty-state">
+          <div className="icon">📋</div>
+          <p>Configure your facility and doctors, then generate a plan.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TOAST ─────────────────────────────────────────
+function Toast({ message, type, onClose }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3000);
+    return () => clearTimeout(t);
+  }, []);
+  return <div className={`toast ${type}`}>{message}</div>;
+}
+
+// ─── APP ───────────────────────────────────────────
+function App() {
+  const [state, setState] = useState(makeDefaultState);
+  const [tab, setTab] = useState(0);
+  const [toast, setToast] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const showToast = (message, type='success') => setToast({ message, type });
+
+  const handleSave = () => {
+    const data = { version: state.version, facility: state.facility, doctors: state.doctors };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `schedule-${state.facility.name || 'facility'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Schedule saved to file');
+  };
+
+  const handleLoad = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.version || !data.facility || !Array.isArray(data.doctors)) {
+          throw new Error('Invalid schema');
+        }
+        if (!data.facility.openingHours || !Array.isArray(data.facility.openingHours)) {
+          throw new Error('Missing facility opening hours');
+        }
+        // Ensure all arrays exist
+        data.facility.specialRequirements = data.facility.specialRequirements || [];
+        data.facility.hourQuotas = data.facility.hourQuotas || [];
+        setState({ ...data, generatedPlan: null });
+        setTab(0);
+        showToast('Schedule loaded successfully');
+      } catch (err) {
+        showToast('Failed to load: ' + err.message, 'error');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  return (
+    <div>
+      <header className="app-header">
+        <div className="app-logo">
+          <div className="app-logo-icon">📅</div>
+          <span>Facility Scheduler</span>
+        </div>
+        <div className="header-actions">
+          <button className="btn btn-sm" onClick={handleSave}>💾 Save</button>
+          <button className="btn btn-sm" onClick={() => fileInputRef.current?.click()}>📂 Load</button>
+          <input ref={fileInputRef} type="file" accept=".json" style={{display:'none'}}
+            onChange={handleLoad} />
+        </div>
+      </header>
+
+      <div className="tabs-bar">
+        <button className={`tab-btn ${tab===0?'active':''}`} onClick={()=>setTab(0)}>
+          Facility Setup
+        </button>
+        <button className={`tab-btn ${tab===1?'active':''}`} onClick={()=>setTab(1)}>
+          Doctors
+          <span className="tab-badge">{state.doctors.length}</span>
+        </button>
+        <button className={`tab-btn ${tab===2?'active':''}`} onClick={()=>setTab(2)}>
+          Generate Plan
+        </button>
+      </div>
+
+      <div className="main-content">
+        {tab === 0 && (
+          <FacilityTab facility={state.facility}
+            onChange={facility => setState(s => ({...s, facility, generatedPlan: null }))} />
+        )}
+        {tab === 1 && (
+          <DoctorsTab doctors={state.doctors} facility={state.facility}
+            onUpdate={doctors => setState(s => ({...s, doctors, generatedPlan: null }))} />
+        )}
+        {tab === 2 && (
+          <PlanTab facility={state.facility} doctors={state.doctors} />
+        )}
+      </div>
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
