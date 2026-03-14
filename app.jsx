@@ -38,7 +38,7 @@ function makeDefaultFacility() {
 }
 
 function makeDefaultState() {
-  return { version: 1, facility: makeDefaultFacility(), doctors: [], generatedPlan: null };
+  return { version: 2, specialties: [], facility: makeDefaultFacility(), doctors: [], generatedPlan: null };
 }
 
 // ─── SPECIALTY COLOR HELPER ────────────────────────
@@ -163,10 +163,10 @@ function DayScheduleEditor({ schedule, onChange }) {
   );
 }
 
-function SpecialRequirementEditor({ requirements, onChange }) {
+function SpecialRequirementEditor({ requirements, onChange, specialties }) {
   const addReq = () => {
     onChange([...requirements, {
-      id: uuid(), specialty: '', days: [], timeBlock: { start: '08:00', end: '17:00' },
+      id: uuid(), specialty: '', level: null, days: [], timeBlock: { start: '08:00', end: '17:00' },
     }]);
   };
   const updateReq = (idx, patch) => {
@@ -180,9 +180,16 @@ function SpecialRequirementEditor({ requirements, onChange }) {
     updateReq(idx, { days: cur.includes(day) ? cur.filter(d => d !== day) : [...cur, day].sort() });
   };
 
+  const getSpecLevels = (specName) => {
+    const spec = specialties.find(s => s.name === specName);
+    return spec ? spec.levels : [];
+  };
+
   return (
     <div>
-      {requirements.map((req, idx) => (
+      {requirements.map((req, idx) => {
+        const levels = getSpecLevels(req.specialty);
+        return (
         <div key={req.id} className="req-card">
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
             <span style={{fontWeight:600,fontSize:'0.85rem'}}>Requirement #{idx+1}</span>
@@ -191,9 +198,20 @@ function SpecialRequirementEditor({ requirements, onChange }) {
           <div className="form-row" style={{marginBottom:10}}>
             <div className="form-group" style={{marginBottom:0}}>
               <label className="form-label">Specialty</label>
-              <input type="text" value={req.specialty} onChange={e => updateReq(idx, { specialty: e.target.value })}
-                placeholder="e.g. Cardiology" />
+              <select value={req.specialty} onChange={e => updateReq(idx, { specialty: e.target.value, level: null })}>
+                <option value="">— Select —</option>
+                {specialties.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
             </div>
+            {levels.length > 0 && (
+              <div className="form-group" style={{marginBottom:0}}>
+                <label className="form-label">Level</label>
+                <select value={req.level || ''} onChange={e => updateReq(idx, { level: e.target.value || null })}>
+                  <option value="">Any level</option>
+                  {levels.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            )}
             <div className="form-group" style={{marginBottom:0}}>
               <label className="form-label">Time</label>
               <div style={{display:'flex',gap:6,alignItems:'center'}}>
@@ -216,15 +234,16 @@ function SpecialRequirementEditor({ requirements, onChange }) {
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
       <button className="btn btn-sm" onClick={addReq}>+ Add Requirement</button>
     </div>
   );
 }
 
-function HourQuotaEditor({ quotas, onChange }) {
+function HourQuotaEditor({ quotas, onChange, specialties }) {
   const addQuota = () => {
-    onChange([...quotas, { id: uuid(), specialty: '', minHoursPerWeek: 0 }]);
+    onChange([...quotas, { id: uuid(), specialty: '', level: null, minHoursPerWeek: 0 }]);
   };
   const updateQuota = (idx, patch) => {
     const next = [...quotas];
@@ -233,16 +252,34 @@ function HourQuotaEditor({ quotas, onChange }) {
   };
   const removeQuota = (idx) => onChange(quotas.filter((_,i) => i !== idx));
 
+  const getSpecLevels = (specName) => {
+    const spec = specialties.find(s => s.name === specName);
+    return spec ? spec.levels : [];
+  };
+
   return (
     <div>
-      {quotas.map((q, idx) => (
+      {quotas.map((q, idx) => {
+        const levels = getSpecLevels(q.specialty);
+        return (
         <div key={q.id} className="quota-card">
           <div style={{display:'flex',gap:10,alignItems:'flex-end'}}>
             <div style={{flex:1}}>
               <label className="form-label">Specialty</label>
-              <input type="text" value={q.specialty} onChange={e => updateQuota(idx, { specialty: e.target.value })}
-                placeholder="e.g. Radiology" />
+              <select value={q.specialty} onChange={e => updateQuota(idx, { specialty: e.target.value, level: null })}>
+                <option value="">— Select —</option>
+                {specialties.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
             </div>
+            {levels.length > 0 && (
+              <div style={{flex:1}}>
+                <label className="form-label">Level</label>
+                <select value={q.level || ''} onChange={e => updateQuota(idx, { level: e.target.value || null })}>
+                  <option value="">Any level</option>
+                  {levels.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            )}
             <div style={{width:140}}>
               <label className="form-label">Min Hours/Week</label>
               <input type="number" min="0" step="0.5" value={q.minHoursPerWeek}
@@ -251,14 +288,129 @@ function HourQuotaEditor({ quotas, onChange }) {
             <button className="btn btn-sm btn-danger btn-ghost" style={{marginBottom:1}} onClick={() => removeQuota(idx)}>✕</button>
           </div>
         </div>
-      ))}
+        );
+      })}
       <button className="btn btn-sm" onClick={addQuota}>+ Add Quota</button>
     </div>
   );
 }
 
-// ─── TAB 1: FACILITY SETUP ────────────────────────
-function FacilityTab({ facility, onChange }) {
+// ─── TAB: SPECIALTIES ─────────────────────────────
+function SpecialtiesTab({ specialties, onChange, doctors, facility }) {
+  const addSpecialty = () => {
+    onChange([...specialties, { id: uuid(), name: '', levels: [] }]);
+  };
+  const updateSpec = (idx, patch) => {
+    const next = [...specialties];
+    next[idx] = { ...next[idx], ...patch };
+    onChange(next);
+  };
+  const removeSpec = (idx) => {
+    onChange(specialties.filter((_,i) => i !== idx));
+  };
+  const addLevel = (idx, level) => {
+    if (!level.trim()) return;
+    const spec = specialties[idx];
+    if (spec.levels.includes(level.trim())) return;
+    updateSpec(idx, { levels: [...spec.levels, level.trim()] });
+  };
+  const removeLevel = (idx, levelIdx) => {
+    const spec = specialties[idx];
+    updateSpec(idx, { levels: spec.levels.filter((_,i) => i !== levelIdx) });
+  };
+
+  const usageCount = (specName) => {
+    const dCount = doctors.filter(d => d.specialty === specName).length;
+    const rCount = (facility.specialRequirements || []).filter(r => r.specialty === specName).length;
+    const qCount = (facility.hourQuotas || []).filter(q => q.specialty === specName).length;
+    return { dCount, rCount, qCount };
+  };
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <div style={{color:'var(--text-dim)',fontSize:'0.88rem'}}>
+          {specialties.length} specialt{specialties.length !== 1 ? 'ies' : 'y'} defined
+        </div>
+        <button className="btn btn-primary" onClick={addSpecialty}>+ Add Specialty</button>
+      </div>
+      {specialties.length === 0 && (
+        <div className="empty-state">
+          <div className="icon">🏷️</div>
+          <p>No specialties defined yet. Add specialties to assign them to doctors and requirements.</p>
+        </div>
+      )}
+      {specialties.map((spec, idx) => {
+        const usage = usageCount(spec.name);
+        const totalUsage = usage.dCount + usage.rCount + usage.qCount;
+        return (
+          <div key={spec.id} className="req-card">
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
+              <span style={{fontWeight:600,fontSize:'0.85rem'}}>Specialty #{idx+1}</span>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                {spec.name && totalUsage > 0 && (
+                  <span style={{fontSize:'0.78rem',color:'var(--text-muted)'}}>
+                    {usage.dCount} doctor{usage.dCount !== 1 ? 's' : ''}, {usage.rCount} req{usage.rCount !== 1 ? 's' : ''}, {usage.qCount} quota{usage.qCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+                <button className="btn btn-sm btn-danger btn-ghost" onClick={() => removeSpec(idx)}>Remove</button>
+              </div>
+            </div>
+            <div className="form-group" style={{marginBottom:10}}>
+              <label className="form-label">Name</label>
+              <input type="text" value={spec.name} onChange={e => updateSpec(idx, { name: e.target.value })}
+                placeholder="e.g. Cardiology" />
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Levels</label>
+              <div className="time-blocks">
+                {spec.levels.map((level, li) => (
+                  <span key={li} className="time-block-chip">
+                    {level}
+                    <span className="remove" onClick={() => removeLevel(idx, li)}>✕</span>
+                  </span>
+                ))}
+                <LevelAdder onAdd={(level) => addLevel(idx, level)} />
+              </div>
+              {spec.levels.length === 0 && (
+                <div style={{fontSize:'0.78rem',color:'var(--text-muted)',marginTop:4}}>
+                  No levels — doctors will not need a level for this specialty.
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function LevelAdder({ onAdd }) {
+  const [adding, setAdding] = useState(false);
+  const [value, setValue] = useState('');
+  const submit = () => {
+    if (value.trim()) {
+      onAdd(value.trim());
+      setValue('');
+      setAdding(false);
+    }
+  };
+  if (!adding) {
+    return <button className="btn btn-sm btn-ghost" onClick={() => setAdding(true)}>+ Level</button>;
+  }
+  return (
+    <span className="add-block-inline">
+      <input type="text" value={value} onChange={e => setValue(e.target.value)}
+        placeholder="e.g. senior" style={{width:100,fontSize:'0.85rem'}}
+        onKeyDown={e => { if (e.key === 'Enter') submit(); }} autoFocus />
+      <button className="btn btn-sm btn-primary" onClick={submit}>Add</button>
+      <button className="btn btn-sm btn-ghost" onClick={() => { setAdding(false); setValue(''); }}>✕</button>
+    </span>
+  );
+}
+
+// ─── TAB: FACILITY SETUP ──────────────────────────
+function FacilityTab({ facility, onChange, specialties }) {
   return (
     <div>
       <div className="card">
@@ -290,7 +442,8 @@ function FacilityTab({ facility, onChange }) {
           Define mandatory specialty coverage during specific time blocks and days.
         </p>
         <SpecialRequirementEditor requirements={facility.specialRequirements}
-          onChange={specialRequirements => onChange({ ...facility, specialRequirements })} />
+          onChange={specialRequirements => onChange({ ...facility, specialRequirements })}
+          specialties={specialties} />
       </div>
 
       <div className="card">
@@ -299,16 +452,17 @@ function FacilityTab({ facility, onChange }) {
           Minimum total hours per week required for each specialty.
         </p>
         <HourQuotaEditor quotas={facility.hourQuotas}
-          onChange={hourQuotas => onChange({ ...facility, hourQuotas })} />
+          onChange={hourQuotas => onChange({ ...facility, hourQuotas })}
+          specialties={specialties} />
       </div>
     </div>
   );
 }
 
-// ─── TAB 2: DOCTORS ────────────────────────────────
-function DoctorForm({ doctor, onSave, onCancel, facility }) {
+// ─── TAB: DOCTORS ─────────────────────────────────
+function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
   const [form, setForm] = useState(doctor || {
-    id: uuid(), name: '', specialty: '',
+    id: uuid(), name: '', specialty: '', level: null,
     availability: Array.from({length:7}, (_,i) => ({ day: i, blocks: [] })),
   });
 
@@ -328,9 +482,24 @@ function DoctorForm({ doctor, onSave, onCancel, facility }) {
           </div>
           <div className="form-group">
             <label className="form-label">Specialty</label>
-            <input type="text" value={form.specialty} onChange={e => update({ specialty: e.target.value })}
-              placeholder="Cardiology" />
+            <select value={form.specialty} onChange={e => update({ specialty: e.target.value, level: null })}>
+              <option value="">— Select —</option>
+              {specialties.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
           </div>
+          {(() => {
+            const spec = specialties.find(s => s.name === form.specialty);
+            const levels = spec ? spec.levels : [];
+            return levels.length > 0 ? (
+              <div className="form-group">
+                <label className="form-label">Level</label>
+                <select value={form.level || ''} onChange={e => update({ level: e.target.value || null })}>
+                  <option value="">— Select —</option>
+                  {levels.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            ) : null;
+          })()}
         </div>
         <div style={{marginBottom:20}}>
           <label className="form-label" style={{marginBottom:10}}>Weekly Availability</label>
@@ -366,7 +535,7 @@ function DoctorForm({ doctor, onSave, onCancel, facility }) {
         <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
           <button className="btn" onClick={onCancel}>Cancel</button>
           <button className="btn btn-primary"
-            disabled={!form.name.trim() || !form.specialty.trim()}
+            disabled={!form.name.trim() || !form.specialty}
             onClick={() => onSave(form)}>
             {doctor ? 'Save Changes' : 'Add Doctor'}
           </button>
@@ -399,7 +568,7 @@ function DoctorCard({ doctor, facility, onEdit, onDelete, colorMap }) {
         <div>
           <div className="doctor-name">{doctor.name}</div>
           <span className="specialty-tag" style={{background:sc.bg, color:sc.color, border:`1px solid ${sc.border}`, marginTop:4}}>
-            {doctor.specialty}
+            {doctor.specialty}{doctor.level ? ` · ${doctor.level}` : ''}
           </span>
         </div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
@@ -444,7 +613,7 @@ function DoctorCard({ doctor, facility, onEdit, onDelete, colorMap }) {
   );
 }
 
-function DoctorsTab({ doctors, facility, onUpdate }) {
+function DoctorsTab({ doctors, facility, onUpdate, specialties }) {
   const [editing, setEditing] = useState(null); // null | 'new' | doctor
   const colorMap = useMemo(() =>
     getSpecialtyColorMap(doctors, facility.specialRequirements, facility.hourQuotas),
@@ -487,6 +656,7 @@ function DoctorsTab({ doctors, facility, onUpdate }) {
         <DoctorForm
           doctor={editing === 'new' ? null : editing}
           facility={facility}
+          specialties={specialties}
           onSave={saveDoctor}
           onCancel={() => setEditing(null)}
         />
@@ -495,7 +665,7 @@ function DoctorsTab({ doctors, facility, onUpdate }) {
   );
 }
 
-// ─── TAB 3: PLAN ───────────────────────────────────
+// ─── TAB: PLAN ────────────────────────────────────
 function PlanTab({ facility, doctors }) {
   const [result, setResult] = useState(null);
   const colorMap = useMemo(() =>
@@ -558,7 +728,7 @@ function PlanTab({ facility, doctors }) {
                         <td style={{fontWeight:600,whiteSpace:'nowrap'}}>{p.doctorName}</td>
                         <td>
                           <span className="specialty-tag" style={{background:sc.bg, color:sc.color, border:`1px solid ${sc.border}`}}>
-                            {p.specialty}
+                            {p.specialty}{p.level ? ` · ${p.level}` : ''}
                           </span>
                         </td>
                         {p.weekSchedule.map((blocks, d) => (
@@ -619,7 +789,7 @@ function App() {
   const showToast = (message, type='success') => setToast({ message, type });
 
   const handleSave = () => {
-    const data = { version: state.version, facility: state.facility, doctors: state.doctors };
+    const data = { version: state.version, specialties: state.specialties, facility: state.facility, doctors: state.doctors };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -646,6 +816,18 @@ function App() {
         // Ensure all arrays exist
         data.facility.specialRequirements = data.facility.specialRequirements || [];
         data.facility.hourQuotas = data.facility.hourQuotas || [];
+        // Migrate v1 → v2
+        if (!data.specialties) {
+          const specNames = new Set();
+          data.doctors.forEach(d => { if (d.specialty) specNames.add(d.specialty); });
+          data.facility.specialRequirements.forEach(r => { if (r.specialty) specNames.add(r.specialty); });
+          data.facility.hourQuotas.forEach(q => { if (q.specialty) specNames.add(q.specialty); });
+          data.specialties = [...specNames].map(name => ({ id: uuid(), name, levels: [] }));
+          data.doctors = data.doctors.map(d => ({ ...d, level: d.level || null }));
+          data.facility.specialRequirements = data.facility.specialRequirements.map(r => ({ ...r, level: r.level != null ? r.level : null }));
+          data.facility.hourQuotas = data.facility.hourQuotas.map(q => ({ ...q, level: q.level != null ? q.level : null }));
+          data.version = 2;
+        }
         setState({ ...data, generatedPlan: null });
         setTab(0);
         showToast('Schedule loaded successfully');
@@ -677,10 +859,14 @@ function App() {
           Facility Setup
         </button>
         <button className={`tab-btn ${tab===1?'active':''}`} onClick={()=>setTab(1)}>
+          Specialties
+          <span className="tab-badge">{state.specialties.length}</span>
+        </button>
+        <button className={`tab-btn ${tab===2?'active':''}`} onClick={()=>setTab(2)}>
           Doctors
           <span className="tab-badge">{state.doctors.length}</span>
         </button>
-        <button className={`tab-btn ${tab===2?'active':''}`} onClick={()=>setTab(2)}>
+        <button className={`tab-btn ${tab===3?'active':''}`} onClick={()=>setTab(3)}>
           Generate Plan
         </button>
       </div>
@@ -688,13 +874,20 @@ function App() {
       <div className="main-content">
         {tab === 0 && (
           <FacilityTab facility={state.facility}
-            onChange={facility => setState(s => ({...s, facility, generatedPlan: null }))} />
+            onChange={facility => setState(s => ({...s, facility, generatedPlan: null }))}
+            specialties={state.specialties} />
         )}
         {tab === 1 && (
-          <DoctorsTab doctors={state.doctors} facility={state.facility}
-            onUpdate={doctors => setState(s => ({...s, doctors, generatedPlan: null }))} />
+          <SpecialtiesTab specialties={state.specialties}
+            onChange={specialties => setState(s => ({...s, specialties, generatedPlan: null }))}
+            doctors={state.doctors} facility={state.facility} />
         )}
         {tab === 2 && (
+          <DoctorsTab doctors={state.doctors} facility={state.facility}
+            onUpdate={doctors => setState(s => ({...s, doctors, generatedPlan: null }))}
+            specialties={state.specialties} />
+        )}
+        {tab === 3 && (
           <PlanTab facility={state.facility} doctors={state.doctors} />
         )}
       </div>

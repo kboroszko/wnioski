@@ -1,4 +1,4 @@
-import { DAYS, toMinutes, toTimeString, mergeIntervals, intersectIntervals, subtractIntervals, coversInterval, sumMinutes, runSolver } from './solver.js';
+import { DAYS, toMinutes, toTimeString, mergeIntervals, intersectIntervals, subtractIntervals, coversInterval, sumMinutes, matchesSpecialtyLevel, runSolver } from './solver.js';
 
 // ─── HELPERS ───────────────────────────────────────
 
@@ -18,11 +18,12 @@ function makeFacility(overrides = {}) {
   };
 }
 
-function makeDoctor(name, specialty, availability) {
+function makeDoctor(name, specialty, availability, level = null) {
   return {
     id: `doc-${name.toLowerCase().replace(/\s+/g, '-')}`,
     name,
     specialty,
+    level,
     availability: Array.from({ length: 7 }, (_, i) => ({
       day: i,
       blocks: availability[i] || [],
@@ -287,5 +288,104 @@ describe('runSolver', () => {
     const cardioPlan = result.plan.find(p => p.specialty === 'Cardiology');
     expect(generalPlan.totalWeeklyHours).toBeGreaterThanOrEqual(20);
     expect(cardioPlan.totalWeeklyHours).toBeGreaterThanOrEqual(15);
+  });
+
+  // ─── LEVEL-AWARE TESTS ─────────────────────────────
+
+  // 17. Phase 3 level=null requirement matches any doctor level
+  test('Phase 3 level: requirement with level=null matches any doctor level', () => {
+    const facility = makeFacility({
+      specialRequirements: [{
+        id: 'req-1',
+        specialty: 'Cardiology',
+        level: null,
+        days: [0, 1, 2, 3, 4],
+        timeBlock: { start: '09:00', end: '12:00' },
+      }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Heart', 'Cardiology', weekBlocks, 'senior');
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(true);
+  });
+
+  // 18. Phase 3 specific level matches correct doctor level
+  test('Phase 3 level: specific level requirement matches correct doctor level', () => {
+    const facility = makeFacility({
+      specialRequirements: [{
+        id: 'req-1',
+        specialty: 'Cardiology',
+        level: 'senior',
+        days: [0, 1, 2, 3, 4],
+        timeBlock: { start: '09:00', end: '12:00' },
+      }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Heart', 'Cardiology', weekBlocks, 'senior');
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(true);
+  });
+
+  // 19. Phase 3 specific level, wrong doctor level → error
+  test('Phase 3 level: specific level requirement, wrong doctor level → error', () => {
+    const facility = makeFacility({
+      specialRequirements: [{
+        id: 'req-1',
+        specialty: 'Cardiology',
+        level: 'senior',
+        days: [0],
+        timeBlock: { start: '09:00', end: '12:00' },
+      }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Heart', 'Cardiology', weekBlocks, 'novice');
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.includes('Cardiology') && e.includes('senior'))).toBe(true);
+  });
+
+  // 20. Phase 4 level=null quota aggregates all levels
+  test('Phase 4 level: quota with level=null aggregates all doctor levels', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'Cardiology', level: null, minHoursPerWeek: 20 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '12:00' }];
+    const doc1 = makeDoctor('Dr. Senior', 'Cardiology', weekBlocks, 'senior');
+    const doc2 = makeDoctor('Dr. Novice', 'Cardiology', weekBlocks, 'novice');
+    // Need full coverage
+    const fullBlocks = {};
+    for (let i = 0; i < 5; i++) fullBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doc3 = makeDoctor('Dr. Full', 'General', fullBlocks);
+    const result = runSolver(facility, [doc1, doc2, doc3]);
+    expect(result.success).toBe(true);
+  });
+
+  // 21. Phase 4 specific level quota met
+  test('Phase 4 level: specific level quota met', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'Cardiology', level: 'senior', minHoursPerWeek: 10 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Heart', 'Cardiology', weekBlocks, 'senior');
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(true);
+  });
+
+  // 22. Phase 4 specific level quota unmet — wrong level doesn't count
+  test('Phase 4 level: specific level quota unmet when only wrong level present', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'Cardiology', level: 'senior', minHoursPerWeek: 10 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Heart', 'Cardiology', weekBlocks, 'novice');
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.includes('Cardiology') && e.includes('0.0h') && e.includes('10h'))).toBe(true);
   });
 });

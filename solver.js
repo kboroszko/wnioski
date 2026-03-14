@@ -77,6 +77,13 @@ export function sumMinutes(blocks) {
   return blocks.reduce((s, b) => s + (toMinutes(b.end) - toMinutes(b.start)), 0);
 }
 
+// ─── SPECIALTY LEVEL MATCHING ─────────────────────
+export function matchesSpecialtyLevel(doctor, specReq) {
+  if (doctor.specialty !== specReq.specialty) return false;
+  if (specReq.level != null && specReq.level !== doctor.level) return false;
+  return true;
+}
+
 // ─── SOLVER ────────────────────────────────────────
 export function runSolver(facility, doctors) {
   const errors = [];
@@ -131,15 +138,16 @@ export function runSolver(facility, doctors) {
     for (const day of req.days) {
       const facDay = facility.openingHours[day];
       if (!facDay.enabled) continue;
-      const matching = effectiveSchedules.filter(es => es.doctor.specialty === req.specialty);
+      const matching = effectiveSchedules.filter(es => matchesSpecialtyLevel(es.doctor, req));
+      const levelLabel = req.level != null ? ` (level: ${req.level})` : '';
       if (matching.length === 0) {
-        errors.push(`Specialty "${req.specialty}" not covered on ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end} — no doctors with this specialty`);
+        errors.push(`Specialty "${req.specialty}"${levelLabel} not covered on ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end} — no doctors with this specialty`);
         continue;
       }
       const matchBlocks = [];
       matching.forEach(es => { es.effective[day].blocks.forEach(b => matchBlocks.push(b)); });
       if (!coversInterval(mergeIntervals(matchBlocks), req.timeBlock)) {
-        errors.push(`Specialty "${req.specialty}" not covered on ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end}`);
+        errors.push(`Specialty "${req.specialty}"${levelLabel} not covered on ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end}`);
       }
     }
   }
@@ -149,7 +157,7 @@ export function runSolver(facility, doctors) {
     if (quota.minHoursPerWeek <= 0) continue;
     let totalMins = 0;
     effectiveSchedules.forEach(es => {
-      if (es.doctor.specialty === quota.specialty) {
+      if (matchesSpecialtyLevel(es.doctor, quota)) {
         es.effective.forEach(d => { totalMins += sumMinutes(d.blocks); });
       }
     });
@@ -172,6 +180,7 @@ export function runSolver(facility, doctors) {
       doctorId: es.doctor.id,
       doctorName: es.doctor.name,
       specialty: es.doctor.specialty,
+      level: es.doctor.level || null,
       weekSchedule,
       totalWeeklyHours: totalMins / 60,
       hasClamp: es.hasClamp,
