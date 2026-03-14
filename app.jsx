@@ -1,4 +1,5 @@
-const { useState, useCallback, useMemo, useRef, useEffect } = React;
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
 
 // ─── CONSTANTS ─────────────────────────────────────
 const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
@@ -849,4 +850,4 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+createRoot(document.getElementById('root')).render(<App />);

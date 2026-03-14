@@ -1,0 +1,22 @@
+{
+  "name": "wnioski",
+  "version": "1.0.0",
+  "description": "Here's a comprehensive technical specification for your Facility Doctor Scheduling App.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
+    "vite": "^7.3.1",
+    "vite-plugin-singlefile": "^2.3.0"
+  },
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  }
+}
