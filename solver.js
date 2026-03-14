@@ -1,5 +1,5 @@
 // ─── CONSTANTS ─────────────────────────────────
-export const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+export const DAYS = ['Pon','Wt','Śr','Czw','Pt','Sob','Ndz'];
 
 // ─── INTERVAL MATH ─────────────────────────────────
 export function toMinutes(hhmm) {
@@ -88,7 +88,7 @@ export function matchesSpecialtyLevel(doctor, specReq) {
 export function runSolver(facility, doctors) {
   const errors = [];
   if (!doctors || doctors.length === 0) {
-    return { success: false, errors: ['No doctors assigned.'] };
+    return { success: false, errors: ['Brak przypisanych lekarzy.'] };
   }
 
   // Phase 1: Clamp
@@ -128,7 +128,7 @@ export function runSolver(facility, doctors) {
     for (const fb of facBlocks) {
       const gaps = subtractIntervals([fb], union);
       for (const gap of gaps) {
-        errors.push(`No doctor coverage on ${DAYS[day]} from ${gap.start} to ${gap.end}`);
+        errors.push(`Brak pokrycia lekarskiego w ${DAYS[day]} od ${gap.start} do ${gap.end}`);
       }
     }
   }
@@ -139,15 +139,15 @@ export function runSolver(facility, doctors) {
       const facDay = facility.openingHours[day];
       if (!facDay.enabled) continue;
       const matching = effectiveSchedules.filter(es => matchesSpecialtyLevel(es.doctor, req));
-      const levelLabel = req.level != null ? ` (level: ${req.level})` : '';
+      const levelLabel = req.level != null ? ` (poziom: ${req.level})` : '';
       if (matching.length === 0) {
-        errors.push(`Specialty "${req.specialty}"${levelLabel} not covered on ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end} — no doctors with this specialty`);
+        errors.push(`Specjalizacja „${req.specialty}"${levelLabel} nie pokryta w ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end} — brak lekarzy z tą specjalizacją`);
         continue;
       }
       const matchBlocks = [];
       matching.forEach(es => { es.effective[day].blocks.forEach(b => matchBlocks.push(b)); });
       if (!coversInterval(mergeIntervals(matchBlocks), req.timeBlock)) {
-        errors.push(`Specialty "${req.specialty}"${levelLabel} not covered on ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end}`);
+        errors.push(`Specjalizacja „${req.specialty}"${levelLabel} nie pokryta w ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end}`);
       }
     }
   }
@@ -163,7 +163,7 @@ export function runSolver(facility, doctors) {
     });
     const totalHrs = totalMins / 60;
     if (totalHrs < quota.minHoursPerWeek) {
-      errors.push(`Specialty "${quota.specialty}" has ${totalHrs.toFixed(1)}h allocated but requires ${quota.minHoursPerWeek}h minimum`);
+      errors.push(`Specjalizacja „${quota.specialty}" ma przydzielone ${totalHrs.toFixed(1)}h, wymagane minimum ${quota.minHoursPerWeek}h`);
     }
   }
 

@@ -117,18 +117,18 @@ function TimeBlockEditor({ blocks, onChange, disabled }) {
         </span>
       ))}
       {!disabled && !adding && (
-        <button className="btn btn-sm btn-ghost" onClick={() => setAdding(true)}>+ Block</button>
+        <button className="btn btn-sm btn-ghost" onClick={() => setAdding(true)}>+ Blok</button>
       )}
       {!disabled && adding && (
         <span className="add-block-inline">
           <TimeInput value={newStart} onChange={setNewStart} />
           <span style={{color:'var(--text-muted)'}}>→</span>
           <TimeInput value={newEnd} onChange={setNewEnd} />
-          <button className="btn btn-sm btn-primary" onClick={addBlock}>Add</button>
+          <button className="btn btn-sm btn-primary" onClick={addBlock}>Dodaj</button>
           <button className="btn btn-sm btn-ghost" onClick={() => setAdding(false)}>✕</button>
         </span>
       )}
-      {blocks.length === 0 && !adding && <span style={{color:'var(--text-muted)', fontSize:'0.8rem'}}>No blocks</span>}
+      {blocks.length === 0 && !adding && <span style={{color:'var(--text-muted)', fontSize:'0.8rem'}}>Brak bloków</span>}
     </div>
   );
 }
@@ -192,28 +192,28 @@ function SpecialRequirementEditor({ requirements, onChange, specialties }) {
         return (
         <div key={req.id} className="req-card">
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
-            <span style={{fontWeight:600,fontSize:'0.85rem'}}>Requirement #{idx+1}</span>
-            <button className="btn btn-sm btn-danger btn-ghost" onClick={() => removeReq(idx)}>Remove</button>
+            <span style={{fontWeight:600,fontSize:'0.85rem'}}>Wymaganie #{idx+1}</span>
+            <button className="btn btn-sm btn-danger btn-ghost" onClick={() => removeReq(idx)}>Usuń</button>
           </div>
           <div className="form-row" style={{marginBottom:10}}>
             <div className="form-group" style={{marginBottom:0}}>
-              <label className="form-label">Specialty</label>
+              <label className="form-label">Specjalizacja</label>
               <select value={req.specialty} onChange={e => updateReq(idx, { specialty: e.target.value, level: null })}>
-                <option value="">— Select —</option>
+                <option value="">— Wybierz —</option>
                 {specialties.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
               </select>
             </div>
             {levels.length > 0 && (
               <div className="form-group" style={{marginBottom:0}}>
-                <label className="form-label">Level</label>
+                <label className="form-label">Poziom</label>
                 <select value={req.level || ''} onChange={e => updateReq(idx, { level: e.target.value || null })}>
-                  <option value="">Any level</option>
+                  <option value="">Dowolny poziom</option>
                   {levels.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
             )}
             <div className="form-group" style={{marginBottom:0}}>
-              <label className="form-label">Time</label>
+              <label className="form-label">Czas</label>
               <div style={{display:'flex',gap:6,alignItems:'center'}}>
                 <TimeInput value={req.timeBlock.start}
                   onChange={v => updateReq(idx, { timeBlock: { ...req.timeBlock, start: v }})} />
@@ -224,7 +224,7 @@ function SpecialRequirementEditor({ requirements, onChange, specialties }) {
             </div>
           </div>
           <div className="form-group" style={{marginBottom:0}}>
-            <label className="form-label">Days</label>
+            <label className="form-label">Dni</label>
             <div className="checkbox-group">
               {DAYS.map((d, di) => (
                 <span key={di}
@@ -236,7 +236,7 @@ function SpecialRequirementEditor({ requirements, onChange, specialties }) {
         </div>
         );
       })}
-      <button className="btn btn-sm" onClick={addReq}>+ Add Requirement</button>
+      <button className="btn btn-sm" onClick={addReq}>+ Dodaj wymaganie</button>
     </div>
   );
 }
@@ -265,23 +265,23 @@ function HourQuotaEditor({ quotas, onChange, specialties }) {
         <div key={q.id} className="quota-card">
           <div style={{display:'flex',gap:10,alignItems:'flex-end'}}>
             <div style={{flex:1}}>
-              <label className="form-label">Specialty</label>
+              <label className="form-label">Specjalizacja</label>
               <select value={q.specialty} onChange={e => updateQuota(idx, { specialty: e.target.value, level: null })}>
-                <option value="">— Select —</option>
+                <option value="">— Wybierz —</option>
                 {specialties.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
               </select>
             </div>
             {levels.length > 0 && (
               <div style={{flex:1}}>
-                <label className="form-label">Level</label>
+                <label className="form-label">Poziom</label>
                 <select value={q.level || ''} onChange={e => updateQuota(idx, { level: e.target.value || null })}>
-                  <option value="">Any level</option>
+                  <option value="">Dowolny poziom</option>
                   {levels.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
             )}
             <div style={{width:140}}>
-              <label className="form-label">Min Hours/Week</label>
+              <label className="form-label">Min godz./tydzień</label>
               <input type="number" min="0" step="0.5" value={q.minHoursPerWeek}
                 onChange={e => updateQuota(idx, { minHoursPerWeek: parseFloat(e.target.value) || 0 })} />
             </div>
@@ -290,7 +290,7 @@ function HourQuotaEditor({ quotas, onChange, specialties }) {
         </div>
         );
       })}
-      <button className="btn btn-sm" onClick={addQuota}>+ Add Quota</button>
+      <button className="btn btn-sm" onClick={addQuota}>+ Dodaj limit</button>
     </div>
   );
 }
@@ -330,14 +330,14 @@ function SpecialtiesTab({ specialties, onChange, doctors, facility }) {
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
         <div style={{color:'var(--text-dim)',fontSize:'0.88rem'}}>
-          {specialties.length} specialt{specialties.length !== 1 ? 'ies' : 'y'} defined
+          Zdefiniowano {specialties.length} specjalizacj{specialties.length === 1 ? 'ę' : specialties.length >= 2 && specialties.length <= 4 ? 'e' : 'i'}
         </div>
-        <button className="btn btn-primary" onClick={addSpecialty}>+ Add Specialty</button>
+        <button className="btn btn-primary" onClick={addSpecialty}>+ Dodaj specjalizację</button>
       </div>
       {specialties.length === 0 && (
         <div className="empty-state">
           <div className="icon">🏷️</div>
-          <p>No specialties defined yet. Add specialties to assign them to doctors and requirements.</p>
+          <p>Nie zdefiniowano jeszcze specjalizacji. Dodaj specjalizacje, aby przypisać je do lekarzy i wymagań.</p>
         </div>
       )}
       {specialties.map((spec, idx) => {
@@ -346,23 +346,23 @@ function SpecialtiesTab({ specialties, onChange, doctors, facility }) {
         return (
           <div key={spec.id} className="req-card">
             <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
-              <span style={{fontWeight:600,fontSize:'0.85rem'}}>Specialty #{idx+1}</span>
+              <span style={{fontWeight:600,fontSize:'0.85rem'}}>Specjalizacja #{idx+1}</span>
               <div style={{display:'flex',gap:8,alignItems:'center'}}>
                 {spec.name && totalUsage > 0 && (
                   <span style={{fontSize:'0.78rem',color:'var(--text-muted)'}}>
-                    {usage.dCount} doctor{usage.dCount !== 1 ? 's' : ''}, {usage.rCount} req{usage.rCount !== 1 ? 's' : ''}, {usage.qCount} quota{usage.qCount !== 1 ? 's' : ''}
+                    {usage.dCount} lekarz{usage.dCount !== 1 ? 'y' : ''}, {usage.rCount} wymag.{''}, {usage.qCount} limit{usage.qCount !== 1 ? 'y' : ''}
                   </span>
                 )}
-                <button className="btn btn-sm btn-danger btn-ghost" onClick={() => removeSpec(idx)}>Remove</button>
+                <button className="btn btn-sm btn-danger btn-ghost" onClick={() => removeSpec(idx)}>Usuń</button>
               </div>
             </div>
             <div className="form-group" style={{marginBottom:10}}>
-              <label className="form-label">Name</label>
+              <label className="form-label">Nazwa</label>
               <input type="text" value={spec.name} onChange={e => updateSpec(idx, { name: e.target.value })}
-                placeholder="e.g. Cardiology" />
+                placeholder="np. Kardiologia" />
             </div>
             <div className="form-group" style={{marginBottom:0}}>
-              <label className="form-label">Levels</label>
+              <label className="form-label">Poziomy</label>
               <div className="time-blocks">
                 {spec.levels.map((level, li) => (
                   <span key={li} className="time-block-chip">
@@ -374,7 +374,7 @@ function SpecialtiesTab({ specialties, onChange, doctors, facility }) {
               </div>
               {spec.levels.length === 0 && (
                 <div style={{fontSize:'0.78rem',color:'var(--text-muted)',marginTop:4}}>
-                  No levels — doctors will not need a level for this specialty.
+                  Brak poziomów — lekarze nie będą potrzebować poziomu dla tej specjalizacji.
                 </div>
               )}
             </div>
@@ -396,14 +396,14 @@ function LevelAdder({ onAdd }) {
     }
   };
   if (!adding) {
-    return <button className="btn btn-sm btn-ghost" onClick={() => setAdding(true)}>+ Level</button>;
+    return <button className="btn btn-sm btn-ghost" onClick={() => setAdding(true)}>+ Poziom</button>;
   }
   return (
     <span className="add-block-inline">
       <input type="text" value={value} onChange={e => setValue(e.target.value)}
-        placeholder="e.g. senior" style={{width:100,fontSize:'0.85rem'}}
+        placeholder="np. senior" style={{width:100,fontSize:'0.85rem'}}
         onKeyDown={e => { if (e.key === 'Enter') submit(); }} autoFocus />
-      <button className="btn btn-sm btn-primary" onClick={submit}>Add</button>
+      <button className="btn btn-sm btn-primary" onClick={submit}>Dodaj</button>
       <button className="btn btn-sm btn-ghost" onClick={() => { setAdding(false); setValue(''); }}>✕</button>
     </span>
   );
@@ -414,16 +414,16 @@ function FacilityTab({ facility, onChange, specialties }) {
   return (
     <div>
       <div className="card">
-        <div className="card-title"><span className="icon">🏥</span> Basic Info</div>
+        <div className="card-title"><span className="icon">🏥</span> Dane podstawowe</div>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Facility Name</label>
+            <label className="form-label">Nazwa placówki</label>
             <input type="text" value={facility.name}
               onChange={e => onChange({ ...facility, name: e.target.value })}
-              placeholder="City Medical Center" />
+              placeholder="Centrum Medyczne" />
           </div>
           <div className="form-group" style={{maxWidth:160}}>
-            <label className="form-label">Rooms</label>
+            <label className="form-label">Gabinety</label>
             <input type="number" min="1" value={facility.roomCount}
               onChange={e => onChange({ ...facility, roomCount: parseInt(e.target.value) || 1 })} />
           </div>
@@ -431,15 +431,15 @@ function FacilityTab({ facility, onChange, specialties }) {
       </div>
 
       <div className="card">
-        <div className="card-title"><span className="icon">🕐</span> Opening Hours</div>
+        <div className="card-title"><span className="icon">🕐</span> Godziny otwarcia</div>
         <DayScheduleEditor schedule={facility.openingHours}
           onChange={openingHours => onChange({ ...facility, openingHours })} />
       </div>
 
       <div className="card">
-        <div className="card-title"><span className="icon">⚕️</span> Special Requirements</div>
+        <div className="card-title"><span className="icon">⚕️</span> Wymagania specjalne</div>
         <p style={{fontSize:'0.82rem',color:'var(--text-muted)',marginBottom:14}}>
-          Define mandatory specialty coverage during specific time blocks and days.
+          Zdefiniuj obowiązkowe pokrycie specjalizacji w określonych blokach czasowych i dniach.
         </p>
         <SpecialRequirementEditor requirements={facility.specialRequirements}
           onChange={specialRequirements => onChange({ ...facility, specialRequirements })}
@@ -447,9 +447,9 @@ function FacilityTab({ facility, onChange, specialties }) {
       </div>
 
       <div className="card">
-        <div className="card-title"><span className="icon">📊</span> Weekly Hour Quotas</div>
+        <div className="card-title"><span className="icon">📊</span> Tygodniowe limity godzin</div>
         <p style={{fontSize:'0.82rem',color:'var(--text-muted)',marginBottom:14}}>
-          Minimum total hours per week required for each specialty.
+          Minimalna łączna liczba godzin tygodniowo wymagana dla każdej specjalizacji.
         </p>
         <HourQuotaEditor quotas={facility.hourQuotas}
           onChange={hourQuotas => onChange({ ...facility, hourQuotas })}
@@ -472,18 +472,18 @@ function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-title">
-          {doctor ? '✏️ Edit Doctor' : '➕ Add Doctor'}
+          {doctor ? '✏️ Edytuj lekarza' : '➕ Dodaj lekarza'}
         </div>
         <div className="form-row" style={{marginBottom:16}}>
           <div className="form-group">
-            <label className="form-label">Name</label>
+            <label className="form-label">Imię i nazwisko</label>
             <input type="text" value={form.name} onChange={e => update({ name: e.target.value })}
-              placeholder="Dr. Smith" />
+              placeholder="Dr Kowalski" />
           </div>
           <div className="form-group">
-            <label className="form-label">Specialty</label>
+            <label className="form-label">Specjalizacja</label>
             <select value={form.specialty} onChange={e => update({ specialty: e.target.value, level: null })}>
-              <option value="">— Select —</option>
+              <option value="">— Wybierz —</option>
               {specialties.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
             </select>
           </div>
@@ -492,9 +492,9 @@ function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
             const levels = spec ? spec.levels : [];
             return levels.length > 0 ? (
               <div className="form-group">
-                <label className="form-label">Level</label>
+                <label className="form-label">Poziom</label>
                 <select value={form.level || ''} onChange={e => update({ level: e.target.value || null })}>
-                  <option value="">— Select —</option>
+                  <option value="">— Wybierz —</option>
                   {levels.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
@@ -502,7 +502,7 @@ function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
           })()}
         </div>
         <div style={{marginBottom:20}}>
-          <label className="form-label" style={{marginBottom:10}}>Weekly Availability</label>
+          <label className="form-label" style={{marginBottom:10}}>Dostępność tygodniowa</label>
           {form.availability.map((da, i) => {
             const facBlocks = facility.openingHours[i].enabled ? facility.openingHours[i].blocks : [];
             const outside = subtractIntervals(mergeIntervals(da.blocks), mergeIntervals(facBlocks));
@@ -521,7 +521,7 @@ function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
                   {outside.length > 0 && (
                     <div style={{marginTop:4}}>
                       {outside.map((b,j) => (
-                        <span key={j} className="time-block-chip warning" title="Outside facility hours — will be clamped">
+                        <span key={j} className="time-block-chip warning" title="Poza godzinami placówki — zostanie przycięte">
                           ⚠ {b.start}–{b.end}
                         </span>
                       ))}
@@ -533,11 +533,11 @@ function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
           })}
         </div>
         <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-          <button className="btn" onClick={onCancel}>Cancel</button>
+          <button className="btn" onClick={onCancel}>Anuluj</button>
           <button className="btn btn-primary"
             disabled={!form.name.trim() || !form.specialty}
             onClick={() => onSave(form)}>
-            {doctor ? 'Save Changes' : 'Add Doctor'}
+            {doctor ? 'Zapisz zmiany' : 'Dodaj lekarza'}
           </button>
         </div>
       </div>
@@ -573,9 +573,9 @@ function DoctorCard({ doctor, facility, onEdit, onDelete, colorMap }) {
         </div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <span style={{fontFamily:'var(--mono)',fontSize:'0.85rem',color:'var(--accent)',fontWeight:600}}>
-            {(totalEffMins/60).toFixed(1)}h/wk
+            {(totalEffMins/60).toFixed(1)}h/tydz.
           </span>
-          <button className="btn btn-sm btn-ghost" onClick={onEdit}>Edit</button>
+          <button className="btn btn-sm btn-ghost" onClick={onEdit}>Edytuj</button>
           <button className="btn btn-sm btn-danger btn-ghost" onClick={onDelete}>✕</button>
         </div>
       </div>
@@ -592,7 +592,7 @@ function DoctorCard({ doctor, facility, onEdit, onDelete, colorMap }) {
                   <span key={`e${j}`} className="time-block-chip">{b.start}–{b.end}</span>
                 ))}
                 {outside.map((b,j) => (
-                  <span key={`w${j}`} className="time-block-chip warning" title="Outside facility hours — will be clamped">
+                  <span key={`w${j}`} className="time-block-chip warning" title="Poza godzinami placówki — zostanie przycięte">
                     ⚠ {b.start}–{b.end}
                   </span>
                 ))}
@@ -606,7 +606,7 @@ function DoctorCard({ doctor, facility, onEdit, onDelete, colorMap }) {
       </div>
       {totalEffMins === 0 && (
         <div style={{marginTop:10,padding:'6px 10px',background:'var(--orange-bg)',borderRadius:'var(--radius-sm)',color:'var(--orange)',fontSize:'0.8rem'}}>
-          ⚠ Zero effective hours — availability doesn't overlap with facility hours.
+          ⚠ Zero efektywnych godzin — dostępność nie pokrywa się z godzinami placówki.
         </div>
       )}
     </div>
@@ -637,14 +637,14 @@ function DoctorsTab({ doctors, facility, onUpdate, specialties }) {
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
         <div style={{color:'var(--text-dim)',fontSize:'0.88rem'}}>
-          {doctors.length} doctor{doctors.length !== 1 ? 's' : ''} configured
+          Skonfigurowano {doctors.length} lekarz{doctors.length === 1 ? 'a' : 'y'}
         </div>
-        <button className="btn btn-primary" onClick={() => setEditing('new')}>+ Add Doctor</button>
+        <button className="btn btn-primary" onClick={() => setEditing('new')}>+ Dodaj lekarza</button>
       </div>
       {doctors.length === 0 && (
         <div className="empty-state">
           <div className="icon">👨‍⚕️</div>
-          <p>No doctors added yet. Add your first doctor to begin scheduling.</p>
+          <p>Nie dodano jeszcze lekarzy. Dodaj pierwszego lekarza, aby rozpocząć planowanie.</p>
         </div>
       )}
       {doctors.map(d => (
@@ -681,14 +681,14 @@ function PlanTab({ facility, doctors }) {
     <div>
       <div style={{textAlign:'center',marginBottom:24}}>
         <button className="btn btn-primary" style={{padding:'12px 32px',fontSize:'1rem'}} onClick={generate}>
-          ⚡ Generate Plan
+          ⚡ Generuj plan
         </button>
       </div>
 
       {result && !result.success && (
         <div className="card">
           <div className="card-title" style={{color:'var(--red)'}}>
-            <span className="icon">❌</span> Plan Generation Failed
+            <span className="icon">❌</span> Generowanie planu nie powiodło się
           </div>
           {result.errors.map((err, i) => (
             <div key={i} className="error-item">{err}</div>
@@ -699,25 +699,25 @@ function PlanTab({ facility, doctors }) {
       {result && result.success && (
         <div>
           <div className="success-banner">
-            <span>✅</span> Plan generated successfully — {result.plan.length} doctor{result.plan.length !== 1 ? 's' : ''} scheduled
+            <span>✅</span> Plan wygenerowany pomyślnie — zaplanowano {result.plan.length} lekarz{result.plan.length === 1 ? 'a' : 'y'}
           </div>
           <div className="card" style={{padding:0,overflow:'hidden'}}>
             <div style={{padding:'16px 20px',borderBottom:'1px solid var(--border)'}}>
-              <div style={{fontWeight:700,fontSize:'1.05rem'}}>{facility.name || 'Facility'}</div>
+              <div style={{fontWeight:700,fontSize:'1.05rem'}}>{facility.name || 'Placówka'}</div>
               <div style={{fontSize:'0.82rem',color:'var(--text-dim)',marginTop:2}}>
                 {facility.openingHours.filter(d => d.enabled).map((d,i) => DAYS[d.day]).join(', ')}
                 {' · '}
-                {facility.roomCount} room{facility.roomCount !== 1 ? 's' : ''}
+                {facility.roomCount} gabinet{facility.roomCount === 1 ? '' : facility.roomCount >= 2 && facility.roomCount <= 4 ? 'y' : 'ów'}
               </div>
             </div>
             <div className="plan-table-wrap">
               <table className="plan-table">
                 <thead>
                   <tr>
-                    <th>Doctor</th>
-                    <th>Specialty</th>
+                    <th>Lekarz</th>
+                    <th>Specjalizacja</th>
                     {DAYS.map(d => <th key={d}>{d}</th>)}
-                    <th>Hours/Wk</th>
+                    <th>Godz./tydz.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -744,7 +744,7 @@ function PlanTab({ facility, doctors }) {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={2} style={{fontWeight:600}}>Total</td>
+                    <td colSpan={2} style={{fontWeight:600}}>Razem</td>
                     {DAYS.map((d, di) => {
                       const dayMins = result.plan.reduce((s,p) => s + sumMinutes(p.weekSchedule[di]), 0);
                       return <td key={di} className="time-cell" style={{fontWeight:500}}>{dayMins > 0 ? `${(dayMins/60).toFixed(1)}h` : '—'}</td>;
@@ -763,7 +763,7 @@ function PlanTab({ facility, doctors }) {
       {!result && (
         <div className="empty-state">
           <div className="icon">📋</div>
-          <p>Configure your facility and doctors, then generate a plan.</p>
+          <p>Skonfiguruj placówkę i lekarzy, a następnie wygeneruj plan.</p>
         </div>
       )}
     </div>
@@ -797,7 +797,7 @@ function App() {
     a.download = `schedule-${state.facility.name || 'facility'}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Schedule saved to file');
+    showToast('Grafik zapisany do pliku');
   };
 
   const handleLoad = (e) => {
@@ -808,10 +808,10 @@ function App() {
       try {
         const data = JSON.parse(ev.target.result);
         if (!data.version || !data.facility || !Array.isArray(data.doctors)) {
-          throw new Error('Invalid schema');
+          throw new Error('Nieprawidłowy schemat');
         }
         if (!data.facility.openingHours || !Array.isArray(data.facility.openingHours)) {
-          throw new Error('Missing facility opening hours');
+          throw new Error('Brak godzin otwarcia placówki');
         }
         // Ensure all arrays exist
         data.facility.specialRequirements = data.facility.specialRequirements || [];
@@ -830,9 +830,9 @@ function App() {
         }
         setState({ ...data, generatedPlan: null });
         setTab(0);
-        showToast('Schedule loaded successfully');
+        showToast('Grafik wczytany pomyślnie');
       } catch (err) {
-        showToast('Failed to load: ' + err.message, 'error');
+        showToast('Błąd wczytywania: ' + err.message, 'error');
       }
     };
     reader.readAsText(file);
@@ -844,11 +844,11 @@ function App() {
       <header className="app-header">
         <div className="app-logo">
           <div className="app-logo-icon">📅</div>
-          <span>Facility Scheduler</span>
+          <span>Planowanie grafiku</span>
         </div>
         <div className="header-actions">
-          <button className="btn btn-sm" onClick={handleSave}>💾 Save</button>
-          <button className="btn btn-sm" onClick={() => fileInputRef.current?.click()}>📂 Load</button>
+          <button className="btn btn-sm" onClick={handleSave}>💾 Zapisz</button>
+          <button className="btn btn-sm" onClick={() => fileInputRef.current?.click()}>📂 Wczytaj</button>
           <input ref={fileInputRef} type="file" accept=".json" style={{display:'none'}}
             onChange={handleLoad} />
         </div>
@@ -856,18 +856,18 @@ function App() {
 
       <div className="tabs-bar">
         <button className={`tab-btn ${tab===0?'active':''}`} onClick={()=>setTab(0)}>
-          Facility Setup
+          Konfiguracja placówki
         </button>
         <button className={`tab-btn ${tab===1?'active':''}`} onClick={()=>setTab(1)}>
-          Specialties
+          Specjalizacje
           <span className="tab-badge">{state.specialties.length}</span>
         </button>
         <button className={`tab-btn ${tab===2?'active':''}`} onClick={()=>setTab(2)}>
-          Doctors
+          Lekarze
           <span className="tab-badge">{state.doctors.length}</span>
         </button>
         <button className={`tab-btn ${tab===3?'active':''}`} onClick={()=>setTab(3)}>
-          Generate Plan
+          Generuj plan
         </button>
       </div>
 

@@ -35,18 +35,18 @@ function makeDoctor(name, specialty, availability, level = null) {
 
 describe('runSolver', () => {
   // 1. Empty/null doctors
-  test('returns failure with "No doctors assigned." when doctors array is empty', () => {
+  test('returns failure with "Brak przypisanych lekarzy." when doctors array is empty', () => {
     const facility = makeFacility();
     const result = runSolver(facility, []);
     expect(result.success).toBe(false);
-    expect(result.errors).toContain('No doctors assigned.');
+    expect(result.errors).toContain('Brak przypisanych lekarzy.');
   });
 
-  test('returns failure with "No doctors assigned." when doctors is null', () => {
+  test('returns failure with "Brak przypisanych lekarzy." when doctors is null', () => {
     const facility = makeFacility();
     const result = runSolver(facility, null);
     expect(result.success).toBe(false);
-    expect(result.errors).toContain('No doctors assigned.');
+    expect(result.errors).toContain('Brak przypisanych lekarzy.');
   });
 
   // 2. Phase 1 clamping — doctor outside facility hours gets clamped
@@ -113,7 +113,7 @@ describe('runSolver', () => {
     const doctor = makeDoctor('Dr. Morning', 'General', weekBlocks);
     const result = runSolver(facility, [doctor]);
     expect(result.success).toBe(false);
-    expect(result.errors.some(e => e.includes('No doctor coverage on Mon from 12:00 to 17:00'))).toBe(true);
+    expect(result.errors.some(e => e.includes('Brak pokrycia lekarskiego w Pon od 12:00 do 17:00'))).toBe(true);
   });
 
   // 7. Phase 2 two doctors cover — combined coverage fills all hours
@@ -163,7 +163,7 @@ describe('runSolver', () => {
     const doctor = makeDoctor('Dr. General', 'General', weekBlocks);
     const result = runSolver(facility, [doctor]);
     expect(result.success).toBe(false);
-    expect(result.errors.some(e => e.includes('Cardiology') && e.includes('no doctors with this specialty'))).toBe(true);
+    expect(result.errors.some(e => e.includes('Cardiology') && e.includes('brak lekarzy z tą specjalizacją'))).toBe(true);
   });
 
   // 10. Phase 3 partial specialty — specialty doctor doesn't cover full required block
@@ -185,7 +185,7 @@ describe('runSolver', () => {
     const doc2 = makeDoctor('Dr. Heart', 'Cardiology', cardioBlocks);
     const result = runSolver(facility, [doc1, doc2]);
     expect(result.success).toBe(false);
-    expect(result.errors.some(e => e.includes('Cardiology') && e.includes('Mon'))).toBe(true);
+    expect(result.errors.some(e => e.includes('Cardiology') && e.includes('Pon'))).toBe(true);
   });
 
   // 11. Phase 4 quota met — enough hours for specialty
