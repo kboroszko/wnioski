@@ -66,7 +66,7 @@ describe('runSolver', () => {
 
   // 3. Phase 1 no clamp — doctor within facility hours
   test('Phase 1: doctor within facility hours, hasClamp = false', () => {
-    const facility = makeFacility();
+    const facility = makeFacility({ roomCount: 2 });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '09:00', end: '16:00' }];
     const doctor = makeDoctor('Dr. Narrow', 'General', weekBlocks);
@@ -118,7 +118,7 @@ describe('runSolver', () => {
 
   // 7. Phase 2 two doctors cover — combined coverage fills all hours
   test('Phase 2: two doctors combined fill all hours → success', () => {
-    const facility = makeFacility();
+    const facility = makeFacility({ roomCount: 2 });
     const morningBlocks = {};
     const afternoonBlocks = {};
     for (let i = 0; i < 5; i++) {
@@ -169,6 +169,7 @@ describe('runSolver', () => {
   // 10. Phase 3 partial specialty — specialty doctor doesn't cover full required block
   test('Phase 3: specialty doctor does not cover full required block → error', () => {
     const facility = makeFacility({
+      roomCount: 2,
       specialRequirements: [{
         id: 'req-1',
         specialty: 'Cardiology',
@@ -259,6 +260,7 @@ describe('runSolver', () => {
   // 16. Integration — full realistic scenario with requirements + quotas
   test('Integration: realistic scenario with specialty requirements and quotas → success', () => {
     const facility = makeFacility({
+      roomCount: 2,
       specialRequirements: [{
         id: 'req-1',
         specialty: 'Cardiology',
@@ -350,6 +352,7 @@ describe('runSolver', () => {
   // 20. Phase 4 level=null quota aggregates all levels
   test('Phase 4 level: quota with level=null aggregates all doctor levels', () => {
     const facility = makeFacility({
+      roomCount: 3,
       hourQuotas: [{ id: 'q-1', specialty: 'Cardiology', level: null, minHoursPerWeek: 20 }],
     });
     const weekBlocks = {};
@@ -387,5 +390,58 @@ describe('runSolver', () => {
     const result = runSolver(facility, [doctor]);
     expect(result.success).toBe(false);
     expect(result.errors.some(e => e.includes('Cardiology') && e.includes('0.0h') && e.includes('10h'))).toBe(true);
+  });
+
+  // ─── ROOM CAPACITY TESTS ──────────────────────────
+
+  // 23. Phase 2.5: 2 doctors, 1 room, overlapping hours → error
+  test('Phase 2.5: 2 doctors overlapping with 1 room → error mentioning day and time', () => {
+    const facility = makeFacility({ roomCount: 1 });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doc1 = makeDoctor('Dr. A', 'General', weekBlocks);
+    const doc2 = makeDoctor('Dr. B', 'General', weekBlocks);
+    const result = runSolver(facility, [doc1, doc2]);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.includes('Zbyt wielu lekarzy') && e.includes('Pon') && e.includes('2 lekarzy') && e.includes('1 gabinetów'))).toBe(true);
+  });
+
+  // 24. Phase 2.5: 2 doctors, 2 rooms, overlapping hours → success
+  test('Phase 2.5: 2 doctors overlapping with 2 rooms → success', () => {
+    const facility = makeFacility({ roomCount: 2 });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doc1 = makeDoctor('Dr. A', 'General', weekBlocks);
+    const doc2 = makeDoctor('Dr. B', 'General', weekBlocks);
+    const result = runSolver(facility, [doc1, doc2]);
+    expect(result.success).toBe(true);
+  });
+
+  // 25. Phase 2.5: 2 doctors, 1 room, non-overlapping hours → success
+  test('Phase 2.5: 2 doctors non-overlapping with 1 room → success', () => {
+    const facility = makeFacility({ roomCount: 1 });
+    const morningBlocks = {};
+    const afternoonBlocks = {};
+    for (let i = 0; i < 5; i++) {
+      morningBlocks[i] = [{ start: '08:00', end: '12:00' }];
+      afternoonBlocks[i] = [{ start: '12:00', end: '17:00' }];
+    }
+    const doc1 = makeDoctor('Dr. AM', 'General', morningBlocks);
+    const doc2 = makeDoctor('Dr. PM', 'General', afternoonBlocks);
+    const result = runSolver(facility, [doc1, doc2]);
+    expect(result.success).toBe(true);
+  });
+
+  // 26. Phase 2.5: 3 doctors, 2 rooms, all overlap → error
+  test('Phase 2.5: 3 doctors overlapping with 2 rooms → error', () => {
+    const facility = makeFacility({ roomCount: 2 });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doc1 = makeDoctor('Dr. A', 'General', weekBlocks);
+    const doc2 = makeDoctor('Dr. B', 'General', weekBlocks);
+    const doc3 = makeDoctor('Dr. C', 'General', weekBlocks);
+    const result = runSolver(facility, [doc1, doc2, doc3]);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.includes('Zbyt wielu lekarzy') && e.includes('3 lekarzy') && e.includes('2 gabinetów'))).toBe(true);
   });
 });

@@ -133,6 +133,41 @@ export function runSolver(facility, doctors) {
     }
   }
 
+  // Phase 2.5: Room Capacity
+  for (let day = 0; day < 7; day++) {
+    const facDay = facility.openingHours[day];
+    if (!facDay.enabled) continue;
+    const events = [];
+    effectiveSchedules.forEach(es => {
+      es.effective[day].blocks.forEach(b => {
+        events.push({ t: toMinutes(b.start), type: 1 });
+        events.push({ t: toMinutes(b.end), type: -1 });
+      });
+    });
+    events.sort((a, b) => a.t - b.t || a.type - b.type);
+    let concurrent = 0;
+    let overStart = null;
+    let peakConcurrent = 0;
+    for (const ev of events) {
+      concurrent += ev.type;
+      if (concurrent > facility.roomCount) {
+        if (overStart === null) {
+          overStart = ev.t;
+          peakConcurrent = concurrent;
+        } else {
+          peakConcurrent = Math.max(peakConcurrent, concurrent);
+        }
+      } else if (concurrent <= facility.roomCount && overStart !== null) {
+        errors.push(`Zbyt wielu lekarzy w ${DAYS[day]} od ${toTimeString(overStart)} do ${toTimeString(ev.t)} — ${peakConcurrent} lekarzy, ${facility.roomCount} gabinetów`);
+        overStart = null;
+        peakConcurrent = 0;
+      }
+    }
+    if (overStart !== null) {
+      errors.push(`Zbyt wielu lekarzy w ${DAYS[day]} od ${toTimeString(overStart)} — przekroczono limit ${facility.roomCount} gabinetów`);
+    }
+  }
+
   // Phase 3: Special Requirements
   for (const req of (facility.specialRequirements || [])) {
     for (const day of req.days) {
