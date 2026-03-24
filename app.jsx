@@ -38,7 +38,7 @@ function makeDefaultFacility() {
 }
 
 function makeDefaultState() {
-  return { version: 2, specialties: [], facility: makeDefaultFacility(), doctors: [], generatedPlan: null };
+  return { version: 2, specialties: [{ id: uuid(), name: 'bez specjalizacji', levels: [] }], facility: makeDefaultFacility(), doctors: [], generatedPlan: null };
 }
 
 // ─── SPECIALTY COLOR HELPER ────────────────────────
@@ -337,7 +337,7 @@ function SpecialtiesTab({ specialties, onChange, doctors, facility }) {
       {specialties.length === 0 && (
         <div className="empty-state">
           <div className="icon">🏷️</div>
-          <p>Nie zdefiniowano jeszcze specjalizacji. Dodaj specjalizacje, aby przypisać je do lekarzy i wymagań.</p>
+          <p>Nie zdefiniowano jeszcze specjalizacji. Dodaj specjalizacje, aby przypisać je do pracowników i wymagań.</p>
         </div>
       )}
       {specialties.map((spec, idx) => {
@@ -350,7 +350,7 @@ function SpecialtiesTab({ specialties, onChange, doctors, facility }) {
               <div style={{display:'flex',gap:8,alignItems:'center'}}>
                 {spec.name && totalUsage > 0 && (
                   <span style={{fontSize:'0.78rem',color:'var(--text-muted)'}}>
-                    {usage.dCount} lekarz{usage.dCount !== 1 ? 'y' : ''}, {usage.rCount} wymag.{''}, {usage.qCount} limit{usage.qCount !== 1 ? 'y' : ''}
+                    {usage.dCount} pracownik{usage.dCount !== 1 ? 'ów' : ''}, {usage.rCount} wymag.{''}, {usage.qCount} limit{usage.qCount !== 1 ? 'y' : ''}
                   </span>
                 )}
                 <button className="btn btn-sm btn-danger btn-ghost" onClick={() => removeSpec(idx)}>Usuń</button>
@@ -359,7 +359,7 @@ function SpecialtiesTab({ specialties, onChange, doctors, facility }) {
             <div className="form-group" style={{marginBottom:10}}>
               <label className="form-label">Nazwa</label>
               <input type="text" value={spec.name} onChange={e => updateSpec(idx, { name: e.target.value })}
-                placeholder="np. Kardiologia" />
+                placeholder="np. Psychologia" />
             </div>
             <div className="form-group" style={{marginBottom:0}}>
               <label className="form-label">Poziomy</label>
@@ -374,7 +374,7 @@ function SpecialtiesTab({ specialties, onChange, doctors, facility }) {
               </div>
               {spec.levels.length === 0 && (
                 <div style={{fontSize:'0.78rem',color:'var(--text-muted)',marginTop:4}}>
-                  Brak poziomów — lekarze nie będą potrzebować poziomu dla tej specjalizacji.
+                  Brak poziomów — pracownicy nie będą potrzebować poziomu dla tej specjalizacji.
                 </div>
               )}
             </div>
@@ -472,7 +472,7 @@ function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-title">
-          {doctor ? '✏️ Edytuj lekarza' : '➕ Dodaj lekarza'}
+          {doctor ? '✏️ Edytuj pracownika' : '➕ Dodaj pracownika'}
         </div>
         <div className="form-row" style={{marginBottom:16}}>
           <div className="form-group">
@@ -537,7 +537,7 @@ function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
           <button className="btn btn-primary"
             disabled={!form.name.trim() || !form.specialty}
             onClick={() => onSave(form)}>
-            {doctor ? 'Zapisz zmiany' : 'Dodaj lekarza'}
+            {doctor ? 'Zapisz zmiany' : 'Dodaj pracownika'}
           </button>
         </div>
       </div>
@@ -637,14 +637,14 @@ function DoctorsTab({ doctors, facility, onUpdate, specialties }) {
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
         <div style={{color:'var(--text-dim)',fontSize:'0.88rem'}}>
-          Skonfigurowano {doctors.length} lekarz{doctors.length === 1 ? 'a' : 'y'}
+          Skonfigurowano {doctors.length} pracownik{doctors.length === 1 ? 'a' : 'ów'}
         </div>
-        <button className="btn btn-primary" onClick={() => setEditing('new')}>+ Dodaj lekarza</button>
+        <button className="btn btn-primary" onClick={() => setEditing('new')}>+ Dodaj pracownika</button>
       </div>
       {doctors.length === 0 && (
         <div className="empty-state">
           <div className="icon">👨‍⚕️</div>
-          <p>Nie dodano jeszcze lekarzy. Dodaj pierwszego lekarza, aby rozpocząć planowanie.</p>
+          <p>Nie dodano jeszcze pracowników. Dodaj pierwszego pracownika, aby rozpocząć planowanie.</p>
         </div>
       )}
       {doctors.map(d => (
@@ -699,7 +699,7 @@ function PlanTab({ facility, doctors }) {
       {result && result.success && (
         <div>
           <div className="success-banner">
-            <span>✅</span> Plan wygenerowany pomyślnie — zaplanowano {result.plan.length} lekarz{result.plan.length === 1 ? 'a' : 'y'}
+            <span>✅</span> Plan wygenerowany pomyślnie — zaplanowano {result.plan.length} pracownik{result.plan.length === 1 ? 'a' : 'ów'}
           </div>
           <div className="card" style={{padding:0,overflow:'hidden'}}>
             <div style={{padding:'16px 20px',borderBottom:'1px solid var(--border)'}}>
@@ -714,7 +714,7 @@ function PlanTab({ facility, doctors }) {
               <table className="plan-table">
                 <thead>
                   <tr>
-                    <th>Lekarz</th>
+                    <th>Pracownik</th>
                     <th>Specjalizacja</th>
                     {DAYS.map(d => <th key={d}>{d}</th>)}
                     <th>Godz./tydz.</th>
@@ -763,7 +763,7 @@ function PlanTab({ facility, doctors }) {
       {!result && (
         <div className="empty-state">
           <div className="icon">📋</div>
-          <p>Skonfiguruj placówkę i lekarzy, a następnie wygeneruj plan.</p>
+          <p>Skonfiguruj placówkę i personel, a następnie wygeneruj plan.</p>
         </div>
       )}
     </div>
@@ -863,7 +863,7 @@ function App() {
           <span className="tab-badge">{state.specialties.length}</span>
         </button>
         <button className={`tab-btn ${tab===2?'active':''}`} onClick={()=>setTab(2)}>
-          Lekarze
+          Personel
           <span className="tab-badge">{state.doctors.length}</span>
         </button>
         <button className={`tab-btn ${tab===3?'active':''}`} onClick={()=>setTab(3)}>

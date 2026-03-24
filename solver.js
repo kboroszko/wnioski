@@ -88,7 +88,7 @@ export function matchesSpecialtyLevel(doctor, specReq) {
 export function runSolver(facility, doctors) {
   const errors = [];
   if (!doctors || doctors.length === 0) {
-    return { success: false, errors: ['Brak przypisanych lekarzy.'] };
+    return { success: false, errors: ['Brak przypisanego personelu.'] };
   }
 
   // Phase 1: Clamp
@@ -128,7 +128,7 @@ export function runSolver(facility, doctors) {
     for (const fb of facBlocks) {
       const gaps = subtractIntervals([fb], union);
       for (const gap of gaps) {
-        errors.push(`Brak pokrycia lekarskiego w ${DAYS[day]} od ${gap.start} do ${gap.end}`);
+        errors.push(`Brak pokrycia personelu w ${DAYS[day]} od ${gap.start} do ${gap.end}`);
       }
     }
   }
@@ -158,13 +158,13 @@ export function runSolver(facility, doctors) {
           peakConcurrent = Math.max(peakConcurrent, concurrent);
         }
       } else if (concurrent <= facility.roomCount && overStart !== null) {
-        errors.push(`Zbyt wielu lekarzy w ${DAYS[day]} od ${toTimeString(overStart)} do ${toTimeString(ev.t)} — ${peakConcurrent} lekarzy, ${facility.roomCount} gabinetów`);
+        errors.push(`Zbyt wielu pracowników w ${DAYS[day]} od ${toTimeString(overStart)} do ${toTimeString(ev.t)} — ${peakConcurrent} pracowników, ${facility.roomCount} gabinetów`);
         overStart = null;
         peakConcurrent = 0;
       }
     }
     if (overStart !== null) {
-      errors.push(`Zbyt wielu lekarzy w ${DAYS[day]} od ${toTimeString(overStart)} — przekroczono limit ${facility.roomCount} gabinetów`);
+      errors.push(`Zbyt wielu pracowników w ${DAYS[day]} od ${toTimeString(overStart)} — przekroczono limit ${facility.roomCount} gabinetów`);
     }
   }
 
@@ -176,7 +176,7 @@ export function runSolver(facility, doctors) {
       const matching = effectiveSchedules.filter(es => matchesSpecialtyLevel(es.doctor, req));
       const levelLabel = req.level != null ? ` (poziom: ${req.level})` : '';
       if (matching.length === 0) {
-        errors.push(`Specjalizacja „${req.specialty}"${levelLabel} nie pokryta w ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end} — brak lekarzy z tą specjalizacją`);
+        errors.push(`Specjalizacja „${req.specialty}"${levelLabel} nie pokryta w ${DAYS[day]} ${req.timeBlock.start}–${req.timeBlock.end} — brak pracowników z tą specjalizacją`);
         continue;
       }
       const matchBlocks = [];
