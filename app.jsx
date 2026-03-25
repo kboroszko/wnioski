@@ -243,7 +243,7 @@ function SpecialRequirementEditor({ requirements, onChange, specialties }) {
 
 function HourQuotaEditor({ quotas, onChange, specialties }) {
   const addQuota = () => {
-    onChange([...quotas, { id: uuid(), specialty: '', level: null, minHoursPerWeek: 0 }]);
+    onChange([...quotas, { id: uuid(), specialty: '', level: null, minHoursPerWeek: 0, maxHoursPerWeek: 0 }]);
   };
   const updateQuota = (idx, patch) => {
     const next = [...quotas];
@@ -284,6 +284,11 @@ function HourQuotaEditor({ quotas, onChange, specialties }) {
               <label className="form-label">Min godz./tydzień</label>
               <input type="number" min="0" step="0.5" value={q.minHoursPerWeek}
                 onChange={e => updateQuota(idx, { minHoursPerWeek: parseFloat(e.target.value) || 0 })} />
+            </div>
+            <div style={{width:140}}>
+              <label className="form-label">Max godz./tydzień</label>
+              <input type="number" min="0" step="0.5" value={q.maxHoursPerWeek || 0}
+                onChange={e => updateQuota(idx, { maxHoursPerWeek: parseFloat(e.target.value) || 0 })} />
             </div>
             <button className="btn btn-sm btn-danger btn-ghost" style={{marginBottom:1}} onClick={() => removeQuota(idx)}>✕</button>
           </div>
@@ -449,7 +454,7 @@ function FacilityTab({ facility, onChange, specialties }) {
       <div className="card">
         <div className="card-title"><span className="icon">📊</span> Tygodniowe limity godzin</div>
         <p style={{fontSize:'0.82rem',color:'var(--text-muted)',marginBottom:14}}>
-          Minimalna łączna liczba godzin tygodniowo wymagana dla każdej specjalizacji.
+          Minimalna i maksymalna łączna liczba godzin tygodniowo dla każdej specjalizacji.
         </p>
         <HourQuotaEditor quotas={facility.hourQuotas}
           onChange={hourQuotas => onChange({ ...facility, hourQuotas })}
@@ -825,7 +830,7 @@ function App() {
           data.specialties = [...specNames].map(name => ({ id: uuid(), name, levels: [] }));
           data.doctors = data.doctors.map(d => ({ ...d, level: d.level || null }));
           data.facility.specialRequirements = data.facility.specialRequirements.map(r => ({ ...r, level: r.level != null ? r.level : null }));
-          data.facility.hourQuotas = data.facility.hourQuotas.map(q => ({ ...q, level: q.level != null ? q.level : null }));
+          data.facility.hourQuotas = data.facility.hourQuotas.map(q => ({ ...q, level: q.level != null ? q.level : null, maxHoursPerWeek: q.maxHoursPerWeek || 0 }));
           data.version = 2;
         }
         setState({ ...data, generatedPlan: null });
