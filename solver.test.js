@@ -215,13 +215,50 @@ describe('runSolver', () => {
     expect(result.errors.some(e => e.includes('Radiology') && e.includes('0.0h') && e.includes('20h'))).toBe(true);
   });
 
-  // 13. Phase 4 zero quota — minHoursPerWeek: 0 skipped silently
+  // 13. Phase 4 zero quota — minHoursPerWeek: 0 and maxHoursPerWeek: 0 skipped silently
   test('Phase 4: zero quota is skipped silently', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'Radiology', minHoursPerWeek: 0 }],
+      hourQuotas: [{ id: 'q-1', specialty: 'Radiology', minHoursPerWeek: 0, maxHoursPerWeek: 0 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Full', 'General', weekBlocks);
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(true);
+  });
+
+  // 13.1. Phase 4 max quota met
+  test('Phase 4: max quota met → success', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'General', maxHoursPerWeek: 50 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }]; // 45h
+    const doctor = makeDoctor('Dr. Full', 'General', weekBlocks);
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(true);
+  });
+
+  // 13.2. Phase 4 max quota exceeded
+  test('Phase 4: max quota exceeded → error', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'General', maxHoursPerWeek: 40 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }]; // 45h
+    const doctor = makeDoctor('Dr. Full', 'General', weekBlocks);
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.includes('General') && e.includes('45.0h') && e.includes('przekracza limit 40h'))).toBe(true);
+  });
+
+  // 13.3. Phase 4 min and max quota met
+  test('Phase 4: min and max quota both met → success', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 40, maxHoursPerWeek: 50 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }]; // 45h
     const doctor = makeDoctor('Dr. Full', 'General', weekBlocks);
     const result = runSolver(facility, [doctor]);
     expect(result.success).toBe(true);
