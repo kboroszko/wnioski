@@ -59,6 +59,7 @@ Here's a comprehensive technical specification for your Facility Doctor Scheduli
   id: string,
   name: string,
   specialty: string,
+  fieldWork: boolean,                     // if true, doctor works off-site and doesn't occupy a room
   availability: DoctorDayAvailability[]   // 7 entries
 }
 ```
@@ -78,6 +79,8 @@ The allocation algorithm runs client-side in JS. It doesn't assign rooms (per yo
 **Phase 1 — Clamp & Flag.** For each doctor, intersect their availability blocks with the facility's opening blocks for the same day. The result is the doctor's *effective schedule* — the hours they'll actually work. If any of the doctor's original availability falls outside facility hours, flag that doctor for the red-highlight UI warning. Store both the raw and clamped availability.
 
 **Phase 2 — Mandatory Coverage Check.** For every facility opening block on every day, verify that at least one doctor's effective schedule fully covers it. Use an interval-union approach: merge all doctors' effective blocks for that day, then confirm the union is a superset of the facility's opening block. If not, fail with: `"No doctor coverage on {Day} from {gap_start} to {gap_end}"`.
+
+**Phase 2.5 — Room Capacity Check.** For each day, use a sweep-line algorithm to count how many doctors are working concurrently at each point in time. Doctors with `fieldWork: true` are excluded from this count since they work off-site and don't occupy a room. If the concurrent (non-field) doctor count exceeds `facility.roomCount` at any point, fail with an error indicating the day, time range, peak count, and room limit.
 
 **Phase 3 — Special Requirement Check.** For each `SpecialRequirement`, filter doctors by matching specialty, then for each required day, check that at least one matching doctor's effective schedule covers the requirement's `timeBlock`. Fail with: `"Specialty {X} not covered on {Day} {start}–{end}"`.
 
@@ -108,7 +111,7 @@ The app is a single `index.html` using vanilla JS (or optionally React via CDN).
 
 **Tab 2 — Doctors**
 - A card list or table of doctors. Each card shows name, specialty, and a compact weekly availability grid.
-- "Add Doctor" button opens an inline form: name, specialty, and a 7-row availability editor identical in structure to the facility hours editor (day + multiple time blocks).
+- "Add Doctor" button opens an inline form: name, specialty, a "Pracuje w terenie" (field work) checkbox, and a 7-row availability editor identical in structure to the facility hours editor (day + multiple time blocks). Doctors marked as field workers are displayed with a "w terenie" tag and are excluded from the room capacity limit.
 - **Red highlight logic**: On each doctor card, for each day, compare the doctor's raw availability blocks against the facility's opening blocks. Any portion of the doctor's time that doesn't intersect facility hours gets rendered with a red background and a tooltip: "Outside facility hours — will be clamped."
 - Edit and delete buttons per doctor.
 

@@ -496,7 +496,7 @@ function FacilityTab({ facility, onChange, specialties }) {
 // ─── TAB: DOCTORS ─────────────────────────────────
 function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
   const [form, setForm] = useState(doctor || {
-    id: uuid(), name: '', specialty: '', level: null,
+    id: uuid(), name: '', specialty: '', level: null, fieldWork: false,
     availability: Array.from({length:7}, (_,i) => ({ day: i, blocks: [] })),
   });
 
@@ -534,6 +534,13 @@ function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
               </div>
             ) : null;
           })()}
+          <div className="form-group" style={{display:'flex',alignItems:'center',paddingTop:22}}>
+            <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:'0.88rem'}}>
+              <input type="checkbox" checked={!!form.fieldWork}
+                onChange={e => update({ fieldWork: e.target.checked })} />
+              Pracuje w terenie
+            </label>
+          </div>
         </div>
         <div style={{marginBottom:20}}>
           <label className="form-label" style={{marginBottom:10}}>Dostępność tygodniowa</label>
@@ -604,6 +611,11 @@ function DoctorCard({ doctor, facility, onEdit, onDelete, colorMap }) {
           <span className="specialty-tag" style={{background:sc.bg, color:sc.color, border:`1px solid ${sc.border}`, marginTop:4}}>
             {doctor.specialty}{doctor.level ? ` · ${doctor.level}` : ''}
           </span>
+          {doctor.fieldWork && (
+            <span className="specialty-tag" style={{background:'var(--green-bg,#e6f4ea)', color:'var(--green,#1a7f37)', border:'1px solid var(--green-border,#a7d8b8)', marginTop:4, marginLeft:4}}>
+              w terenie
+            </span>
+          )}
         </div>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           <span style={{fontFamily:'var(--mono)',fontSize:'0.85rem',color:'var(--accent)',fontWeight:600}}>
@@ -764,6 +776,11 @@ function PlanTab({ facility, doctors }) {
                           <span className="specialty-tag" style={{background:sc.bg, color:sc.color, border:`1px solid ${sc.border}`}}>
                             {p.specialty}{p.level ? ` · ${p.level}` : ''}
                           </span>
+                          {p.fieldWork && (
+                            <span className="specialty-tag" style={{background:'var(--green-bg,#e6f4ea)', color:'var(--green,#1a7f37)', border:'1px solid var(--green-border,#a7d8b8)', marginLeft:4}}>
+                              w terenie
+                            </span>
+                          )}
                         </td>
                         {p.weekSchedule.map((blocks, d) => (
                           <td key={d} className="time-cell">

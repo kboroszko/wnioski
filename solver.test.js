@@ -444,4 +444,55 @@ describe('runSolver', () => {
     expect(result.success).toBe(false);
     expect(result.errors.some(e => e.includes('Zbyt wielu pracowników') && e.includes('3 pracowników') && e.includes('2 gabinetów'))).toBe(true);
   });
+
+  // ─── FIELD WORK TESTS ──────────────────────────────
+
+  // 27. Field worker does NOT count toward room capacity
+  test('Phase 2.5: 2 doctors overlapping, 1 room, 1 field worker → success', () => {
+    const facility = makeFacility({ roomCount: 1 });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doc1 = makeDoctor('Dr. A', 'General', weekBlocks);
+    const doc2 = { ...makeDoctor('Dr. B', 'General', weekBlocks), fieldWork: true };
+    const result = runSolver(facility, [doc1, doc2]);
+    expect(result.success).toBe(true);
+  });
+
+  // 28. Field worker still counts for coverage and hour quotas
+  test('Field worker still contributes to coverage and hour quotas', () => {
+    const facility = makeFacility({ roomCount: 1 });
+    facility.hourQuotas = [{ id: 'q1', specialty: 'General', level: null, minHoursPerWeek: 80 }];
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doc1 = makeDoctor('Dr. A', 'General', weekBlocks);
+    const doc2 = { ...makeDoctor('Dr. B', 'General', weekBlocks), fieldWork: true };
+    const result = runSolver(facility, [doc1, doc2]);
+    // 2 doctors × 45h = 90h ≥ 80h quota → should pass
+    expect(result.success).toBe(true);
+  });
+
+  // 29. Without fieldWork flag, same setup fails room capacity
+  test('Phase 2.5: 2 doctors overlapping, 1 room, no field worker → error', () => {
+    const facility = makeFacility({ roomCount: 1 });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doc1 = makeDoctor('Dr. A', 'General', weekBlocks);
+    const doc2 = makeDoctor('Dr. B', 'General', weekBlocks);
+    const result = runSolver(facility, [doc1, doc2]);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.includes('Zbyt wielu pracowników'))).toBe(true);
+  });
+
+  // 30. Plan output includes fieldWork flag
+  test('Plan output includes fieldWork flag for field workers', () => {
+    const facility = makeFacility({ roomCount: 2 });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doc1 = makeDoctor('Dr. A', 'General', weekBlocks);
+    const doc2 = { ...makeDoctor('Dr. B', 'General', weekBlocks), fieldWork: true };
+    const result = runSolver(facility, [doc1, doc2]);
+    expect(result.success).toBe(true);
+    expect(result.plan.find(p => p.doctorName === 'Dr. B').fieldWork).toBe(true);
+    expect(result.plan.find(p => p.doctorName === 'Dr. A').fieldWork).toBe(false);
+  });
 });

@@ -133,12 +133,13 @@ export function runSolver(facility, doctors) {
     }
   }
 
-  // Phase 2.5: Room Capacity
+  // Phase 2.5: Room Capacity (exclude field workers — they don't need a room)
   for (let day = 0; day < 7; day++) {
     const facDay = facility.openingHours[day];
     if (!facDay.enabled) continue;
     const events = [];
     effectiveSchedules.forEach(es => {
+      if (es.doctor.fieldWork) return;
       es.effective[day].blocks.forEach(b => {
         events.push({ t: toMinutes(b.start), type: 1 });
         events.push({ t: toMinutes(b.end), type: -1 });
@@ -216,6 +217,7 @@ export function runSolver(facility, doctors) {
       doctorName: es.doctor.name,
       specialty: es.doctor.specialty,
       level: es.doctor.level || null,
+      fieldWork: !!es.doctor.fieldWork,
       weekSchedule,
       totalWeeklyHours: totalMins / 60,
       hasClamp: es.hasClamp,
