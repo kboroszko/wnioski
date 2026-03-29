@@ -38,7 +38,7 @@ function makeDefaultFacility() {
 }
 
 function makeDefaultState() {
-  return { version: 2, specialties: [{ id: uuid(), name: 'bez specjalizacji', levels: [] }], facility: makeDefaultFacility(), doctors: [], generatedPlan: null };
+  return { version: 2, specialties: [], facility: makeDefaultFacility(), doctors: [], generatedPlan: null };
 }
 
 // ─── SPECIALTY COLOR HELPER ────────────────────────
@@ -331,7 +331,7 @@ function HourQuotaEditor({ quotas, onChange, specialties }) {
 // ─── TAB: SPECIALTIES ─────────────────────────────
 function SpecialtiesTab({ specialties, onChange, doctors, facility }) {
   const addSpecialty = () => {
-    onChange([...specialties, { id: uuid(), name: '', levels: [] }]);
+    onChange([...specialties, { id: uuid(), name: '', levels: ['bez specjalizacji'] }]);
   };
   const updateSpec = (idx, patch) => {
     const next = [...specialties];
@@ -392,7 +392,7 @@ function SpecialtiesTab({ specialties, onChange, doctors, facility }) {
             <div className="form-group" style={{marginBottom:10}}>
               <label className="form-label">Nazwa</label>
               <input type="text" value={spec.name} onChange={e => updateSpec(idx, { name: e.target.value })}
-                placeholder="np. Psychologia" />
+                placeholder="np. Psycholog" />
             </div>
             <div className="form-group" style={{marginBottom:0}}>
               <label className="form-label">Poziomy</label>
@@ -434,7 +434,7 @@ function LevelAdder({ onAdd }) {
   return (
     <span className="add-block-inline">
       <input type="text" value={value} onChange={e => setValue(e.target.value)}
-        placeholder="np. senior" style={{width:100,fontSize:'0.85rem'}}
+        placeholder="np. starszy specjalista" style={{width:150,fontSize:'0.85rem'}}
         onKeyDown={e => { if (e.key === 'Enter') submit(); }} autoFocus />
       <button className="btn btn-sm btn-primary" onClick={submit}>Dodaj</button>
       <button className="btn btn-sm btn-ghost" onClick={() => { setAdding(false); setValue(''); }}>✕</button>
