@@ -905,7 +905,7 @@ function Toast({ message, type, onClose }) {
 }
 
 // ─── SIDEBAR ──────────────────────────────────────
-function FacilitySidebar({ facilities, activeFacilityId, onSwitch, onAdd, onDelete, onSave, onLoadClick, fileInputRef, onLoad }) {
+function FacilitySidebar({ facilities, activeFacilityId, onSwitch, onAdd, onDuplicate, onDelete, onSave, onLoadClick, fileInputRef, onLoad }) {
   return (
     <aside className="facility-sidebar">
       <div className="sidebar-header">
@@ -923,13 +923,20 @@ function FacilitySidebar({ facilities, activeFacilityId, onSwitch, onAdd, onDele
             <span className="sidebar-item-meta">
               {fs.doctors.length} prac. · {fs.facility.roomCount} gab.
             </span>
-            {facilities.length > 1 && (
+            <div className="sidebar-item-actions">
               <button
-                className="btn btn-icon btn-ghost btn-sm sidebar-delete"
-                onClick={(e) => { e.stopPropagation(); onDelete(fs.id); }}
-                title="Usuń placówkę"
-              >✕</button>
-            )}
+                className="btn btn-icon btn-ghost btn-sm sidebar-action-btn"
+                onClick={(e) => { e.stopPropagation(); onDuplicate(fs.id); }}
+                title="Duplikuj placówkę"
+              >⧉</button>
+              {facilities.length > 1 && (
+                <button
+                  className="btn btn-icon btn-ghost btn-sm sidebar-action-btn sidebar-delete"
+                  onClick={(e) => { e.stopPropagation(); onDelete(fs.id); }}
+                  title="Usuń placówkę"
+                >✕</button>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -978,6 +985,24 @@ function App() {
       facilities: [...prev.facilities, newFS],
       activeFacilityId: newFS.id,
     }));
+    setTab(0);
+  };
+
+  const duplicateFacility = (id) => {
+    setAppState(prev => {
+      const source = prev.facilities.find(f => f.id === id);
+      if (!source) return prev;
+      const newId = uuid();
+      const clone = JSON.parse(JSON.stringify(source));
+      clone.id = newId;
+      clone.facility.id = uuid();
+      clone.facility.name = (clone.facility.name || 'Bez nazwy') + ' (kopia)';
+      return {
+        ...prev,
+        facilities: [...prev.facilities, clone],
+        activeFacilityId: newId,
+      };
+    });
     setTab(0);
   };
 
@@ -1074,6 +1099,7 @@ function App() {
         activeFacilityId={appState.activeFacilityId}
         onSwitch={switchFacility}
         onAdd={addFacility}
+        onDuplicate={duplicateFacility}
         onDelete={deleteFacility}
         onSave={handleSave}
         onLoadClick={() => fileInputRef.current?.click()}

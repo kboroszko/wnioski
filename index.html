@@ -416,19 +416,28 @@ input:focus, select:focus {
   margin-top: 2px;
 }
 
-.sidebar-delete {
+.sidebar-item-actions {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+}
+
+.sidebar-action-btn {
   opacity: 0;
 }
 
-.sidebar-item:hover .sidebar-delete {
+.sidebar-item:hover .sidebar-action-btn {
   opacity: 0.6;
 }
 
-.sidebar-delete:hover {
+.sidebar-action-btn:hover {
   opacity: 1 !important;
+}
+
+.sidebar-delete:hover {
+  color: var(--red) !important;
 }
 
 .sidebar-actions {
