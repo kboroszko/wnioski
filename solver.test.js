@@ -1,4 +1,4 @@
-import { DAYS, toMinutes, toTimeString, mergeIntervals, intersectIntervals, subtractIntervals, coversInterval, sumMinutes, matchesSpecialtyLevel, runSolver } from './solver.js';
+import { DAYS, toMinutes, toTimeString, mergeIntervals, intersectIntervals, subtractIntervals, coversInterval, sumMinutes, matchesSpecialtyLevel, runSolver, normalizeName, checkCrossFacilityConflicts } from './solver.js';
 
 // ─── HELPERS ───────────────────────────────────────
 
@@ -595,5 +595,245 @@ describe('runSolver', () => {
     expect(result.success).toBe(true);
     expect(result.plan.find(p => p.doctorName === 'Dr. B').fieldWork).toBe(true);
     expect(result.plan.find(p => p.doctorName === 'Dr. A').fieldWork).toBe(false);
+  });
+});
+
+// ─── normalizeName ────────────────────────────────
+describe('normalizeName', () => {
+  test('lowercases and removes spaces', () => {
+    expect(normalizeName('Jan Kowalski')).toBe('jankowalski');
+  });
+
+  test('handles empty/null input', () => {
+    expect(normalizeName('')).toBe('');
+    expect(normalizeName(null)).toBe('');
+    expect(normalizeName(undefined)).toBe('');
+  });
+
+  test('removes Polish diacritics: ą', () => {
+    expect(normalizeName('Ząb')).toBe('zab');
+    expect(normalizeName('ąść')).toBe('asc');
+  });
+
+  test('removes Polish diacritics: ć', () => {
+    expect(normalizeName('Ćma')).toBe('cma');
+    expect(normalizeName('świeć')).toBe('swiec');
+  });
+
+  test('removes Polish diacritics: ę', () => {
+    expect(normalizeName('Węgiel')).toBe('wegiel');
+    expect(normalizeName('Częstochowa')).toBe('czestochowa');
+  });
+
+  test('removes Polish diacritics: ł', () => {
+    expect(normalizeName('Łódź')).toBe('lodz');
+    expect(normalizeName('Małgorzata')).toBe('malgorzata');
+  });
+
+  test('removes Polish diacritics: ń', () => {
+    expect(normalizeName('Gdańsk')).toBe('gdansk');
+    expect(normalizeName('Koń')).toBe('kon');
+  });
+
+  test('removes Polish diacritics: ó', () => {
+    expect(normalizeName('Góra')).toBe('gora');
+    expect(normalizeName('Łódź')).toBe('lodz');
+  });
+
+  test('removes Polish diacritics: ś', () => {
+    expect(normalizeName('Śląsk')).toBe('slask');
+    expect(normalizeName('Jaś')).toBe('jas');
+  });
+
+  test('removes Polish diacritics: ź', () => {
+    expect(normalizeName('Źródło')).toBe('zrodlo');
+    expect(normalizeName('Łaź')).toBe('laz');
+  });
+
+  test('removes Polish diacritics: ż', () => {
+    expect(normalizeName('Żółw')).toBe('zolw');
+    expect(normalizeName('Jeż')).toBe('jez');
+  });
+
+  test('handles full Polish names with multiple diacritics', () => {
+    expect(normalizeName('Stanisław Żółkiewski')).toBe('stanislawzolkiewski');
+    expect(normalizeName('Małgorzata Ćwiklińska')).toBe('malgorzatacwiklinska');
+    expect(normalizeName('Józef Piłsudski')).toBe('jozefpilsudski');
+    expect(normalizeName('Łukasz Wróbel')).toBe('lukaszwrobel');
+    expect(normalizeName('Agnieszka Więckowska')).toBe('agnieszkawieckowska');
+  });
+
+  test('handles mixed case', () => {
+    expect(normalizeName('ŁUKASZ WRÓBEL')).toBe('lukaszwrobel');
+    expect(normalizeName('łukasz wróbel')).toBe('lukaszwrobel');
+  });
+
+  test('handles multiple spaces and whitespace', () => {
+    expect(normalizeName('  Jan   Kowalski  ')).toBe('jankowalski');
+    expect(normalizeName('Jan\tKowalski')).toBe('jankowalski');
+  });
+
+  test('handles names with hyphens and other chars', () => {
+    expect(normalizeName('Anna Nowak-Kowalska')).toBe('annanowak-kowalska');
+  });
+
+  test('handles Dr. prefix', () => {
+    expect(normalizeName('Dr. Łukasz Żak')).toBe('dr.lukaszzak');
+  });
+
+  test('two names with same base match after normalization', () => {
+    expect(normalizeName('Józef Wójcik')).toBe(normalizeName('józef wójcik'));
+    expect(normalizeName('JÓZEF WÓJCIK')).toBe(normalizeName('Józef Wójcik'));
+  });
+});
+
+// ─── checkCrossFacilityConflicts ──────────────────
+describe('checkCrossFacilityConflicts', () => {
+  function makeFacilityState(id, facilityOverrides, doctors) {
+    return {
+      id,
+      specialties: [],
+      facility: makeFacility(facilityOverrides),
+      doctors: doctors,
+    };
+  }
+
+  test('returns no errors when no other facilities exist', () => {
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '12:00' }];
+    const doc = makeDoctor('Jan Kowalski', 'General', weekBlocks);
+    const fs = makeFacilityState('fs1', {}, [doc]);
+    const errors = checkCrossFacilityConflicts(fs, [fs]);
+    expect(errors).toEqual([]);
+  });
+
+  test('returns no errors when doctor names do not match across facilities', () => {
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '12:00' }];
+    const doc1 = makeDoctor('Jan Kowalski', 'General', weekBlocks);
+    const doc2 = makeDoctor('Anna Nowak', 'General', weekBlocks);
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors).toEqual([]);
+  });
+
+  test('detects conflict when same doctor overlaps across facilities', () => {
+    const blocks1 = {};
+    for (let i = 0; i < 5; i++) blocks1[i] = [{ start: '08:00', end: '12:00' }];
+    const blocks2 = {};
+    for (let i = 0; i < 5; i++) blocks2[i] = [{ start: '11:00', end: '15:00' }];
+
+    const doc1 = makeDoctor('Józef Wójcik', 'General', blocks1);
+    const doc2 = makeDoctor('Józef Wójcik', 'General', blocks2);
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('Konflikt');
+    expect(errors[0]).toContain('Józef Wójcik');
+  });
+
+  test('detects conflict with 30 min margin — adjacent blocks within margin', () => {
+    // Facility A: doctor works 08:00-12:00
+    // Facility B: doctor works 12:15-16:00
+    // Gap is only 15 min, less than 30 min margin → conflict
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '12:15', end: '16:00' }];
+
+    const doc1 = makeDoctor('Jan Kowalski', 'General', blocksA);
+    const doc2 = makeDoctor('Jan Kowalski', 'General', blocksB);
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  test('no conflict when gap is exactly 30 min', () => {
+    // Facility A: doctor works 08:00-12:00
+    // Facility B: doctor works 12:30-16:00
+    // Gap is exactly 30 min → no conflict
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '12:30', end: '16:00' }];
+
+    const doc1 = makeDoctor('Jan Kowalski', 'General', blocksA);
+    const doc2 = makeDoctor('Jan Kowalski', 'General', blocksB);
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors).toEqual([]);
+  });
+
+  test('no conflict when gap is more than 30 min', () => {
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '13:00', end: '17:00' }];
+
+    const doc1 = makeDoctor('Jan Kowalski', 'General', blocksA);
+    const doc2 = makeDoctor('Jan Kowalski', 'General', blocksB);
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors).toEqual([]);
+  });
+
+  test('matches doctors with different diacritics via normalization', () => {
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '10:00', end: '14:00' }];
+
+    const doc1 = makeDoctor('Łukasz Wróbel', 'General', blocksA);
+    const doc2 = makeDoctor('ŁUKASZ WRÓBEL', 'General', blocksB);
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  test('clamps doctor availability to facility hours before checking', () => {
+    // Facility A opens 08:00-12:00, doctor available 08:00-17:00
+    // Facility B opens 14:00-18:00, doctor available 08:00-17:00
+    // Effective: A=08:00-12:00, B=14:00-17:00 — gap is 2h → no conflict
+    const facA = {
+      openingHours: Array.from({ length: 7 }, (_, i) => ({
+        day: i, enabled: i < 5,
+        blocks: i < 5 ? [{ start: '08:00', end: '12:00' }] : [],
+      })),
+    };
+    const facB = {
+      openingHours: Array.from({ length: 7 }, (_, i) => ({
+        day: i, enabled: i < 5,
+        blocks: i < 5 ? [{ start: '14:00', end: '18:00' }] : [],
+      })),
+    };
+    const allDay = {};
+    for (let i = 0; i < 5; i++) allDay[i] = [{ start: '08:00', end: '17:00' }];
+
+    const doc1 = makeDoctor('Jan Kowalski', 'General', allDay);
+    const doc2 = makeDoctor('Jan Kowalski', 'General', allDay);
+    const fs1 = makeFacilityState('fs1', facA, [doc1]);
+    const fs2 = makeFacilityState('fs2', facB, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors).toEqual([]);
+  });
+
+  test('detects conflict even on a single day', () => {
+    // Only Monday has overlap
+    const blocksA = { 0: [{ start: '08:00', end: '12:00' }] };
+    const blocksB = { 0: [{ start: '11:00', end: '15:00' }] };
+
+    const doc1 = makeDoctor('Jan Kowalski', 'General', blocksA);
+    const doc2 = makeDoctor('Jan Kowalski', 'General', blocksB);
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain('Pon');
   });
 });

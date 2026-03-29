@@ -1,6 +1,24 @@
 // ─── CONSTANTS ─────────────────────────────────
 export const DAYS = ['Pon','Wt','Śr','Czw','Pt','Sob','Ndz'];
 
+// ─── NAME NORMALIZATION ────────────────────────
+const POLISH_DIACRITICS = {
+  'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n',
+  'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+  'Ą': 'a', 'Ć': 'c', 'Ę': 'e', 'Ł': 'l', 'Ń': 'n',
+  'Ó': 'o', 'Ś': 's', 'Ź': 'z', 'Ż': 'z',
+};
+
+export function normalizeName(name) {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, ch => POLISH_DIACRITICS[ch] || ch)
+    .replace(/\s+/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 // ─── INTERVAL MATH ─────────────────────────────────
 export function toMinutes(hhmm) {
   if (!hhmm) return 0;
@@ -230,4 +248,64 @@ export function runSolver(facility, doctors) {
   });
 
   return { success: true, plan };
+}
+
+// ─── CROSS-FACILITY CONFLICT CHECK ──────────────
+const MARGIN_MINUTES = 30; // 0.5h margin
+
+export function checkCrossFacilityConflicts(activeFacilityState, allFacilityStates) {
+  const errors = [];
+  const activeDoctors = activeFacilityState.doctors;
+  const activeFacility = activeFacilityState.facility;
+  const otherFacilities = allFacilityStates.filter(fs => fs.id !== activeFacilityState.id);
+
+  if (otherFacilities.length === 0) return errors;
+
+  for (const doc of activeDoctors) {
+    const docNorm = normalizeName(doc.name);
+    if (!docNorm) continue;
+
+    for (const otherFS of otherFacilities) {
+      const otherFac = otherFS.facility;
+      for (const otherDoc of otherFS.doctors) {
+        if (normalizeName(otherDoc.name) !== docNorm) continue;
+
+        // Same normalized name found in another facility — check each day
+        for (let day = 0; day < 7; day++) {
+          const activeFacDay = activeFacility.openingHours[day];
+          const otherFacDay = otherFac.openingHours[day];
+
+          // Get effective (clamped) blocks for this doctor in each facility
+          const docBlocks = doc.availability[day]?.blocks || [];
+          const activeEffective = activeFacDay.enabled
+            ? intersectIntervals(mergeIntervals(docBlocks), mergeIntervals(activeFacDay.blocks))
+            : [];
+
+          const otherDocBlocks = otherDoc.availability[day]?.blocks || [];
+          const otherEffective = otherFacDay.enabled
+            ? intersectIntervals(mergeIntervals(otherDocBlocks), mergeIntervals(otherFacDay.blocks))
+            : [];
+
+          if (activeEffective.length === 0 || otherEffective.length === 0) continue;
+
+          // Expand other facility blocks by margin on each side
+          const expanded = otherEffective.map(b => ({
+            start: toTimeString(Math.max(0, toMinutes(b.start) - MARGIN_MINUTES)),
+            end: toTimeString(Math.min(24 * 60, toMinutes(b.end) + MARGIN_MINUTES)),
+          }));
+
+          const overlap = intersectIntervals(activeEffective, expanded);
+          if (overlap.length > 0) {
+            const otherName = otherFac.name || 'Bez nazwy';
+            const otherBlocks = otherEffective.map(b => `${b.start}–${b.end}`).join(', ');
+            errors.push(
+              `Konflikt: „${doc.name}" pracuje w ${DAYS[day]} w innej placówce (${otherName}: ${otherBlocks}) — wymagany 30 min margines`
+            );
+          }
+        }
+      }
+    }
+  }
+
+  return errors;
 }

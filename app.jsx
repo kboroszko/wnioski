@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { DAYS, toMinutes, toTimeString, mergeIntervals, intersectIntervals, subtractIntervals, coversInterval, sumMinutes, runSolver } from './solver.js';
+import { DAYS, toMinutes, toTimeString, mergeIntervals, intersectIntervals, subtractIntervals, coversInterval, sumMinutes, runSolver, normalizeName, checkCrossFacilityConflicts } from './solver.js';
 const SPECIALTY_COLORS = [
   { bg: 'rgba(59,90,214,0.1)', color: '#3b5ad6', border: 'rgba(59,90,214,0.25)' },
   { bg: 'rgba(124,99,221,0.1)', color: '#7c63dd', border: 'rgba(124,99,221,0.25)' },
@@ -624,7 +624,7 @@ function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
           <button className="btn" onClick={onCancel}>Anuluj</button>
           <button className="btn btn-primary"
             disabled={!form.name.trim() || !form.specialty}
-            onClick={() => onSave(form)}>
+            onClick={() => onSave({ ...form, normalizedName: normalizeName(form.name) })}>
             {doctor ? 'Zapisz zmiany' : 'Dodaj pracownika'}
           </button>
         </div>
@@ -759,7 +759,7 @@ function DoctorsTab({ doctors, facility, onUpdate, specialties }) {
 }
 
 // ─── TAB: PLAN ────────────────────────────────────
-function PlanTab({ facility, doctors }) {
+function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates }) {
   const [result, setResult] = useState(null);
   const colorMap = useMemo(() =>
     getSpecialtyColorMap(doctors, facility.specialRequirements, facility.hourQuotas),
@@ -767,7 +767,15 @@ function PlanTab({ facility, doctors }) {
   );
 
   const generate = () => {
-    setResult(runSolver(facility, doctors));
+    const solverResult = runSolver(facility, doctors);
+    if (solverResult.success && allFacilityStates && allFacilityStates.length > 1) {
+      const crossErrors = checkCrossFacilityConflicts(activeFacilityState, allFacilityStates);
+      if (crossErrors.length > 0) {
+        setResult({ success: false, errors: crossErrors });
+        return;
+      }
+    }
+    setResult(solverResult);
   };
 
   return (
@@ -1040,7 +1048,9 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `schedule-${activeFS.facility.name || 'placowki'}.json`;
+    const now = new Date();
+    const ts = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + '_' + String(now.getHours()).padStart(2,'0') + '-' + String(now.getMinutes()).padStart(2,'0');
+    a.download = `schedule-${ts}.json`;
     a.click();
     URL.revokeObjectURL(url);
     showToast('Dane zapisane do pliku');
@@ -1148,7 +1158,8 @@ function App() {
               specialties={activeFS.specialties} />
           )}
           {tab === 3 && (
-            <PlanTab facility={activeFS.facility} doctors={activeFS.doctors} />
+            <PlanTab facility={activeFS.facility} doctors={activeFS.doctors}
+              activeFacilityState={activeFS} allFacilityStates={appState.facilities} />
           )}
         </div>
       </div>
