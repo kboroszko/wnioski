@@ -795,7 +795,34 @@ function PlanTab({ facility, doctors }) {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={2} style={{fontWeight:600}}>Razem</td>
+                    <td colSpan={2} style={{fontWeight:600}}>Godziny placówki</td>
+                    {DAYS.map((d, di) => {
+                      const fDay = facility.openingHours[di];
+                      return (
+                        <td key={di} className="time-cell">
+                          {fDay.enabled && fDay.blocks.length > 0
+                            ? fDay.blocks.map((b,j) => <span key={j}>{b.start}–{b.end}</span>)
+                            : <span style={{color:'var(--text-muted)'}}>—</span>}
+                        </td>
+                      );
+                    })}
+                    <td className="hours-cell">
+                      {(facility.openingHours.reduce((s, fDay) => s + (fDay.enabled ? sumMinutes(fDay.blocks) : 0), 0) / 60).toFixed(1)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colSpan={2} style={{fontWeight:600}}>Suma placówki</td>
+                    {DAYS.map((d, di) => {
+                      const fDay = facility.openingHours[di];
+                      const mins = fDay.enabled ? sumMinutes(fDay.blocks) : 0;
+                      return <td key={di} className="time-cell" style={{fontWeight:500}}>{mins > 0 ? `${(mins/60).toFixed(1)}h` : '—'}</td>;
+                    })}
+                    <td className="hours-cell">
+                      {(facility.openingHours.reduce((s, fDay) => s + (fDay.enabled ? sumMinutes(fDay.blocks) : 0), 0) / 60).toFixed(1)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colSpan={2} style={{fontWeight:600}}>Osobo-godziny</td>
                     {DAYS.map((d, di) => {
                       const dayMins = result.plan.reduce((s,p) => s + sumMinutes(p.weekSchedule[di]), 0);
                       return <td key={di} className="time-cell" style={{fontWeight:500}}>{dayMins > 0 ? `${(dayMins/60).toFixed(1)}h` : '—'}</td>;
