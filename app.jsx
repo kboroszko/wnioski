@@ -37,8 +37,49 @@ function makeDefaultFacility() {
   };
 }
 
-function makeDefaultState() {
-  return { version: 2, specialties: [], facility: makeDefaultFacility(), doctors: [], generatedPlan: null };
+function makeDefaultFacilityState() {
+  return {
+    id: uuid(),
+    specialties: [],
+    facility: makeDefaultFacility(),
+    doctors: [],
+  };
+}
+
+function makeDefaultAppState() {
+  const first = makeDefaultFacilityState();
+  return {
+    facilities: [first],
+    activeFacilityId: first.id,
+  };
+}
+
+function migrateFacility(facility) {
+  if (!facility || !facility.openingHours || !Array.isArray(facility.openingHours)) {
+    throw new Error('Brak godzin otwarcia placówki');
+  }
+  facility.specialRequirements = facility.specialRequirements || [];
+  facility.hourQuotas = facility.hourQuotas || [];
+  facility.hourQuotas = facility.hourQuotas.map(q => ({
+    ...q,
+    maxHoursPerWeek: q.maxHoursPerWeek != null ? q.maxHoursPerWeek : 0,
+  }));
+  return facility;
+}
+
+function migrateSingleFacilityData(data) {
+  migrateFacility(data.facility);
+  if (!data.specialties) {
+    const specNames = new Set();
+    data.doctors.forEach(d => { if (d.specialty) specNames.add(d.specialty); });
+    data.facility.specialRequirements.forEach(r => { if (r.specialty) specNames.add(r.specialty); });
+    data.facility.hourQuotas.forEach(q => { if (q.specialty) specNames.add(q.specialty); });
+    data.specialties = [...specNames].map(name => ({ id: uuid(), name, levels: [] }));
+    data.doctors = data.doctors.map(d => ({ ...d, level: d.level || null }));
+    data.facility.specialRequirements = data.facility.specialRequirements.map(r => ({ ...r, level: r.level != null ? r.level : null }));
+    data.facility.hourQuotas = data.facility.hourQuotas.map(q => ({ ...q, level: q.level != null ? q.level : null }));
+  }
+  return data;
 }
 
 // ─── SPECIALTY COLOR HELPER ────────────────────────
@@ -863,14 +904,94 @@ function Toast({ message, type, onClose }) {
   return <div className={`toast ${type}`}>{message}</div>;
 }
 
+// ─── SIDEBAR ──────────────────────────────────────
+function FacilitySidebar({ facilities, activeFacilityId, onSwitch, onAdd, onDelete, onSave, onLoadClick, fileInputRef, onLoad }) {
+  return (
+    <aside className="facility-sidebar">
+      <div className="sidebar-header">
+        <span className="sidebar-title">Placówki</span>
+        <button className="btn btn-sm btn-primary" onClick={onAdd}>+ Nowa</button>
+      </div>
+      <div className="sidebar-list">
+        {facilities.map(fs => (
+          <div
+            key={fs.id}
+            className={`sidebar-item ${fs.id === activeFacilityId ? 'active' : ''}`}
+            onClick={() => onSwitch(fs.id)}
+          >
+            <span className="sidebar-item-name">{fs.facility.name || 'Bez nazwy'}</span>
+            <span className="sidebar-item-meta">
+              {fs.doctors.length} prac. · {fs.facility.roomCount} gab.
+            </span>
+            {facilities.length > 1 && (
+              <button
+                className="btn btn-icon btn-ghost btn-sm sidebar-delete"
+                onClick={(e) => { e.stopPropagation(); onDelete(fs.id); }}
+                title="Usuń placówkę"
+              >✕</button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="sidebar-actions">
+        <button className="btn btn-sm" onClick={onSave} style={{width:'100%'}}>💾 Zapisz</button>
+        <button className="btn btn-sm" onClick={onLoadClick} style={{width:'100%'}}>📂 Wczytaj</button>
+        <input ref={fileInputRef} type="file" accept=".json" style={{display:'none'}} onChange={onLoad} />
+      </div>
+    </aside>
+  );
+}
+
 // ─── APP ───────────────────────────────────────────
 function App() {
-  const [state, setState] = useState(makeDefaultState);
+  const [appState, setAppState] = useState(makeDefaultAppState);
   const [tab, setTab] = useState(0);
   const [toast, setToast] = useState(null);
   const fileInputRef = useRef(null);
 
   const showToast = (message, type='success') => setToast({ message, type });
+
+  // Derived: active facility state
+  const activeFS = appState.facilities.find(f => f.id === appState.activeFacilityId);
+
+  // Update the active facility's sub-state
+  const updateActiveFS = (updater) => {
+    setAppState(prev => ({
+      ...prev,
+      facilities: prev.facilities.map(f =>
+        f.id === prev.activeFacilityId
+          ? (typeof updater === 'function' ? updater(f) : { ...f, ...updater })
+          : f
+      ),
+    }));
+  };
+
+  const switchFacility = (id) => {
+    setAppState(prev => ({ ...prev, activeFacilityId: id }));
+    setTab(0);
+  };
+
+  const addFacility = () => {
+    const newFS = makeDefaultFacilityState();
+    setAppState(prev => ({
+      ...prev,
+      facilities: [...prev.facilities, newFS],
+      activeFacilityId: newFS.id,
+    }));
+    setTab(0);
+  };
+
+  const deleteFacility = (id) => {
+    setAppState(prev => {
+      if (prev.facilities.length <= 1) return prev;
+      const remaining = prev.facilities.filter(f => f.id !== id);
+      return {
+        ...prev,
+        facilities: remaining,
+        activeFacilityId: prev.activeFacilityId === id ? remaining[0].id : prev.activeFacilityId,
+      };
+    });
+  };
 
   useEffect(() => {
     const handler = (e) => {
@@ -882,15 +1003,22 @@ function App() {
   }, []);
 
   const handleSave = () => {
-    const data = { version: state.version, specialties: state.specialties, facility: state.facility, doctors: state.doctors };
+    const data = {
+      version: 3,
+      facilities: appState.facilities.map(fs => ({
+        specialties: fs.specialties,
+        facility: fs.facility,
+        doctors: fs.doctors,
+      })),
+    };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `schedule-${state.facility.name || 'facility'}.json`;
+    a.download = `schedule-${activeFS.facility.name || 'placowki'}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Grafik zapisany do pliku');
+    showToast('Dane zapisane do pliku');
   };
 
   const handleLoad = (e) => {
@@ -900,35 +1028,37 @@ function App() {
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target.result);
-        if (!data.version || !data.facility || !Array.isArray(data.doctors)) {
+
+        let facilities;
+        if (data.version === 3 && Array.isArray(data.facilities)) {
+          // v3 format: array of facility states
+          facilities = data.facilities.map(fs => ({
+            id: fs.facility?.id || uuid(),
+            specialties: fs.specialties || [],
+            facility: migrateFacility(fs.facility),
+            doctors: fs.doctors || [],
+          }));
+        } else if (data.facility && Array.isArray(data.doctors)) {
+          // v1 or v2: single facility
+          const migrated = migrateSingleFacilityData(data);
+          facilities = [{
+            id: migrated.facility.id || uuid(),
+            specialties: migrated.specialties,
+            facility: migrated.facility,
+            doctors: migrated.doctors,
+          }];
+        } else {
           throw new Error('Nieprawidłowy schemat');
         }
-        if (!data.facility.openingHours || !Array.isArray(data.facility.openingHours)) {
-          throw new Error('Brak godzin otwarcia placówki');
-        }
-        // Ensure all arrays exist
-        data.facility.specialRequirements = data.facility.specialRequirements || [];
-        data.facility.hourQuotas = data.facility.hourQuotas || [];
-        // Migrate v1 → v2
-        if (!data.specialties) {
-          const specNames = new Set();
-          data.doctors.forEach(d => { if (d.specialty) specNames.add(d.specialty); });
-          data.facility.specialRequirements.forEach(r => { if (r.specialty) specNames.add(r.specialty); });
-          data.facility.hourQuotas.forEach(q => { if (q.specialty) specNames.add(q.specialty); });
-          data.specialties = [...specNames].map(name => ({ id: uuid(), name, levels: [] }));
-          data.doctors = data.doctors.map(d => ({ ...d, level: d.level || null }));
-          data.facility.specialRequirements = data.facility.specialRequirements.map(r => ({ ...r, level: r.level != null ? r.level : null }));
-          data.facility.hourQuotas = data.facility.hourQuotas.map(q => ({ ...q, level: q.level != null ? q.level : null }));
-          data.version = 2;
-        }
-        // Ensure maxHoursPerWeek exists on all quotas
-        data.facility.hourQuotas = data.facility.hourQuotas.map(q => ({
-          ...q,
-          maxHoursPerWeek: q.maxHoursPerWeek != null ? q.maxHoursPerWeek : 0,
-        }));
-        setState({ ...data, generatedPlan: null });
+
+        if (facilities.length === 0) throw new Error('Brak placówek w pliku');
+
+        setAppState({
+          facilities,
+          activeFacilityId: facilities[0].id,
+        });
         setTab(0);
-        showToast('Grafik wczytany pomyślnie');
+        showToast('Dane wczytane pomyślnie');
       } catch (err) {
         showToast('Błąd wczytywania: ' + err.message, 'error');
       }
@@ -938,56 +1068,63 @@ function App() {
   };
 
   return (
-    <div>
-      <header className="app-header">
-        <div className="app-logo">
-          <div className="app-logo-icon">📅</div>
-          <span>Planowanie grafiku</span>
-        </div>
-        <div className="header-actions">
-          <button className="btn btn-sm" onClick={handleSave}>💾 Zapisz</button>
-          <button className="btn btn-sm" onClick={() => fileInputRef.current?.click()}>📂 Wczytaj</button>
-          <input ref={fileInputRef} type="file" accept=".json" style={{display:'none'}}
-            onChange={handleLoad} />
-        </div>
-      </header>
+    <div className="app-layout">
+      <FacilitySidebar
+        facilities={appState.facilities}
+        activeFacilityId={appState.activeFacilityId}
+        onSwitch={switchFacility}
+        onAdd={addFacility}
+        onDelete={deleteFacility}
+        onSave={handleSave}
+        onLoadClick={() => fileInputRef.current?.click()}
+        fileInputRef={fileInputRef}
+        onLoad={handleLoad}
+      />
+      <div className="app-main">
+        <header className="app-header">
+          <div className="app-logo">
+            <div className="app-logo-icon">📅</div>
+            <span>Planowanie grafiku</span>
+          </div>
+        </header>
 
-      <div className="tabs-bar">
-        <button className={`tab-btn ${tab===0?'active':''}`} onClick={()=>setTab(0)}>
-          Konfiguracja placówki
-        </button>
-        <button className={`tab-btn ${tab===1?'active':''}`} onClick={()=>setTab(1)}>
-          Specjalizacje
-          <span className="tab-badge">{state.specialties.length}</span>
-        </button>
-        <button className={`tab-btn ${tab===2?'active':''}`} onClick={()=>setTab(2)}>
-          Personel
-          <span className="tab-badge">{state.doctors.length}</span>
-        </button>
-        <button className={`tab-btn ${tab===3?'active':''}`} onClick={()=>setTab(3)}>
-          Generuj plan
-        </button>
-      </div>
+        <div className="tabs-bar">
+          <button className={`tab-btn ${tab===0?'active':''}`} onClick={()=>setTab(0)}>
+            Konfiguracja placówki
+          </button>
+          <button className={`tab-btn ${tab===1?'active':''}`} onClick={()=>setTab(1)}>
+            Specjalizacje
+            <span className="tab-badge">{activeFS.specialties.length}</span>
+          </button>
+          <button className={`tab-btn ${tab===2?'active':''}`} onClick={()=>setTab(2)}>
+            Personel
+            <span className="tab-badge">{activeFS.doctors.length}</span>
+          </button>
+          <button className={`tab-btn ${tab===3?'active':''}`} onClick={()=>setTab(3)}>
+            Generuj plan
+          </button>
+        </div>
 
-      <div className="main-content">
-        {tab === 0 && (
-          <FacilityTab facility={state.facility}
-            onChange={facility => setState(s => ({...s, facility, generatedPlan: null }))}
-            specialties={state.specialties} />
-        )}
-        {tab === 1 && (
-          <SpecialtiesTab specialties={state.specialties}
-            onChange={specialties => setState(s => ({...s, specialties, generatedPlan: null }))}
-            doctors={state.doctors} facility={state.facility} />
-        )}
-        {tab === 2 && (
-          <DoctorsTab doctors={state.doctors} facility={state.facility}
-            onUpdate={doctors => setState(s => ({...s, doctors, generatedPlan: null }))}
-            specialties={state.specialties} />
-        )}
-        {tab === 3 && (
-          <PlanTab facility={state.facility} doctors={state.doctors} />
-        )}
+        <div className="main-content" key={appState.activeFacilityId}>
+          {tab === 0 && (
+            <FacilityTab facility={activeFS.facility}
+              onChange={facility => updateActiveFS(fs => ({...fs, facility }))}
+              specialties={activeFS.specialties} />
+          )}
+          {tab === 1 && (
+            <SpecialtiesTab specialties={activeFS.specialties}
+              onChange={specialties => updateActiveFS({ specialties })}
+              doctors={activeFS.doctors} facility={activeFS.facility} />
+          )}
+          {tab === 2 && (
+            <DoctorsTab doctors={activeFS.doctors} facility={activeFS.facility}
+              onUpdate={doctors => updateActiveFS({ doctors })}
+              specialties={activeFS.specialties} />
+          )}
+          {tab === 3 && (
+            <PlanTab facility={activeFS.facility} doctors={activeFS.doctors} />
+          )}
+        </div>
       </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
