@@ -483,7 +483,108 @@ describe('runSolver', () => {
     expect(result.errors.some(e => e.includes('Zbyt wielu pracowników'))).toBe(true);
   });
 
-  // 30. Plan output includes fieldWork flag
+  // 30. Phase 4 max quota: under limit → success
+  test('Phase 4: max quota met (under limit) → success', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 0, maxHoursPerWeek: 50 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Full', 'General', weekBlocks);
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(true);
+  });
+
+  // 31. Phase 4 max quota exceeded → error
+  test('Phase 4: max quota exceeded → error', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 0, maxHoursPerWeek: 10 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Full', 'General', weekBlocks);
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.includes('General') && e.includes('maksimum') && e.includes('10h'))).toBe(true);
+  });
+
+  // 32. Both min=0 and max=0 → skipped
+  test('Phase 4: both min and max zero → skipped', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'Radiology', minHoursPerWeek: 0, maxHoursPerWeek: 0 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Full', 'General', weekBlocks);
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(true);
+  });
+
+  // 33. Both min and max set, value within range → success
+  test('Phase 4: both min and max, within range → success', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 10, maxHoursPerWeek: 50 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Full', 'General', weekBlocks);
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(true);
+  });
+
+  // 34. Both min and max set, below min → min error only
+  test('Phase 4: both min and max, below min → min error', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'Radiology', minHoursPerWeek: 10, maxHoursPerWeek: 50 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Full', 'General', weekBlocks);
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.includes('Radiology') && e.includes('minimum'))).toBe(true);
+  });
+
+  // 35. Both min and max set, above max → max error only
+  test('Phase 4: both min and max, above max → max error', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 10, maxHoursPerWeek: 20 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Full', 'General', weekBlocks);
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.includes('General') && e.includes('maksimum') && e.includes('20h'))).toBe(true);
+  });
+
+  // 36. Max-only quota (min=0, max=20) enforced
+  test('Phase 4: max-only quota enforced when min is 0', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 0, maxHoursPerWeek: 20 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = makeDoctor('Dr. Full', 'General', weekBlocks);
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.includes('maksimum'))).toBe(true);
+  });
+
+  // 37. Level-aware max quota
+  test('Phase 4 level: max quota with specific level exceeded', () => {
+    const facility = makeFacility({
+      hourQuotas: [{ id: 'q-1', specialty: 'Cardiology', level: 'senior', minHoursPerWeek: 0, maxHoursPerWeek: 5 }],
+    });
+    const weekBlocks = {};
+    for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
+    const doctor = { ...makeDoctor('Dr. Heart', 'Cardiology', weekBlocks), level: 'senior' };
+    const result = runSolver(facility, [doctor]);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.includes('Cardiology') && e.includes('maksimum'))).toBe(true);
+  });
+
+  // 38. Plan output includes fieldWork flag
   test('Plan output includes fieldWork flag for field workers', () => {
     const facility = makeFacility({ roomCount: 2 });
     const weekBlocks = {};

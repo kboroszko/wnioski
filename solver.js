@@ -190,7 +190,9 @@ export function runSolver(facility, doctors) {
 
   // Phase 4: Hour Quotas
   for (const quota of (facility.hourQuotas || [])) {
-    if (quota.minHoursPerWeek <= 0) continue;
+    const hasMin = quota.minHoursPerWeek > 0;
+    const hasMax = (quota.maxHoursPerWeek || 0) > 0;
+    if (!hasMin && !hasMax) continue;
     let totalMins = 0;
     effectiveSchedules.forEach(es => {
       if (matchesSpecialtyLevel(es.doctor, quota)) {
@@ -198,8 +200,11 @@ export function runSolver(facility, doctors) {
       }
     });
     const totalHrs = totalMins / 60;
-    if (totalHrs < quota.minHoursPerWeek) {
+    if (hasMin && totalHrs < quota.minHoursPerWeek) {
       errors.push(`Specjalizacja „${quota.specialty}" ma przydzielone ${totalHrs.toFixed(1)}h, wymagane minimum ${quota.minHoursPerWeek}h`);
+    }
+    if (hasMax && totalHrs > quota.maxHoursPerWeek) {
+      errors.push(`Specjalizacja „${quota.specialty}" ma przydzielone ${totalHrs.toFixed(1)}h, dozwolone maksimum ${quota.maxHoursPerWeek}h`);
     }
   }
 
