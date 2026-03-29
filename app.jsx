@@ -95,6 +95,9 @@ function TimeBlockEditor({ blocks, onChange, disabled }) {
   const [adding, setAdding] = useState(false);
   const [newStart, setNewStart] = useState('08:00');
   const [newEnd, setNewEnd] = useState('17:00');
+  const [editIdx, setEditIdx] = useState(null);
+  const [editStart, setEditStart] = useState('');
+  const [editEnd, setEditEnd] = useState('');
 
   const addBlock = () => {
     if (newStart && newEnd && toMinutes(newEnd) > toMinutes(newStart)) {
@@ -106,17 +109,46 @@ function TimeBlockEditor({ blocks, onChange, disabled }) {
 
   const removeBlock = (idx) => {
     onChange(blocks.filter((_,i) => i !== idx));
+    if (editIdx === idx) setEditIdx(null);
   };
+
+  const startEdit = (idx) => {
+    setEditIdx(idx);
+    setEditStart(blocks[idx].start);
+    setEditEnd(blocks[idx].end);
+    setAdding(false);
+  };
+
+  const confirmEdit = () => {
+    if (editStart && editEnd && toMinutes(editEnd) > toMinutes(editStart)) {
+      const next = blocks.map((b, i) => i === editIdx ? { start: editStart, end: editEnd } : b);
+      onChange(mergeIntervals(next));
+    }
+    setEditIdx(null);
+  };
+
+  const cancelEdit = () => setEditIdx(null);
 
   return (
     <div className="time-blocks">
       {blocks.map((b, i) => (
-        <span key={i} className="time-block-chip">
-          {b.start}–{b.end}
-          {!disabled && <span className="remove" onClick={() => removeBlock(i)}>✕</span>}
-        </span>
+        editIdx === i && !disabled ? (
+          <span key={i} className="add-block-inline">
+            <TimeInput value={editStart} onChange={setEditStart} />
+            <span style={{color:'var(--text-muted)'}}>→</span>
+            <TimeInput value={editEnd} onChange={setEditEnd} />
+            <button className="btn btn-sm btn-primary" onClick={confirmEdit}>OK</button>
+            <button className="btn btn-sm btn-ghost" onClick={cancelEdit}>✕</button>
+          </span>
+        ) : (
+          <span key={i} className="time-block-chip" onClick={!disabled ? () => startEdit(i) : undefined}
+            style={!disabled ? {cursor:'pointer'} : undefined}>
+            {b.start}–{b.end}
+            {!disabled && <span className="remove" onClick={(e) => { e.stopPropagation(); removeBlock(i); }}>✕</span>}
+          </span>
+        )
       ))}
-      {!disabled && !adding && (
+      {!disabled && !adding && editIdx === null && (
         <button className="btn btn-sm btn-ghost" onClick={() => setAdding(true)}>+ Blok</button>
       )}
       {!disabled && adding && (
@@ -282,8 +314,9 @@ function HourQuotaEditor({ quotas, onChange, specialties }) {
             )}
             <div style={{width:140}}>
               <label className="form-label">Min godz./tydzień</label>
-              <input type="number" min="0" step="0.5" value={q.minHoursPerWeek}
-                onChange={e => updateQuota(idx, { minHoursPerWeek: parseFloat(e.target.value) || 0 })} />
+              <input type="number" step="0.5" value={q.minHoursPerWeek}
+                onChange={e => updateQuota(idx, { minHoursPerWeek: e.target.value === '' ? '' : parseFloat(e.target.value) || '' })}
+                onBlur={e => { if (e.target.value === '' || isNaN(parseFloat(e.target.value)) || parseFloat(e.target.value) < 0) updateQuota(idx, { minHoursPerWeek: 0 }); }} />
             </div>
             <button className="btn btn-sm btn-danger btn-ghost" style={{marginBottom:1}} onClick={() => removeQuota(idx)}>✕</button>
           </div>
@@ -424,8 +457,9 @@ function FacilityTab({ facility, onChange, specialties }) {
           </div>
           <div className="form-group" style={{maxWidth:160}}>
             <label className="form-label">Gabinety</label>
-            <input type="number" min="1" value={facility.roomCount}
-              onChange={e => onChange({ ...facility, roomCount: parseInt(e.target.value) || 1 })} />
+            <input type="number" value={facility.roomCount}
+              onChange={e => onChange({ ...facility, roomCount: e.target.value === '' ? '' : parseInt(e.target.value) || '' })}
+              onBlur={e => { if (e.target.value === '' || isNaN(parseInt(e.target.value)) || parseInt(e.target.value) < 1) onChange({ ...facility, roomCount: 1 }); }} />
           </div>
         </div>
       </div>
@@ -787,6 +821,15 @@ function App() {
   const fileInputRef = useRef(null);
 
   const showToast = (message, type='success') => setToast({ message, type });
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      e.returnValue = 'Czy nie zapomniałeś zapisać zmian?';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
 
   const handleSave = () => {
     const data = { version: state.version, specialties: state.specialties, facility: state.facility, doctors: state.doctors };
