@@ -623,7 +623,7 @@ function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
         <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
           <button className="btn" onClick={onCancel}>Anuluj</button>
           <button className="btn btn-primary"
-            disabled={!form.name.trim() || !form.specialty}
+            disabled={!form.name.trim() || !form.specialty || (specialties.find(s => s.name === form.specialty)?.levels?.length > 0 && !form.level)}
             onClick={() => onSave({ ...form, normalizedName: normalizeName(form.name) })}>
             {doctor ? 'Zapisz zmiany' : 'Dodaj pracownika'}
           </button>
