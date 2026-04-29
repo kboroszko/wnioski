@@ -30,7 +30,7 @@ function makeDefaultFacility() {
     openingHours: Array.from({length:7}, (_,i) => ({
       day: i,
       enabled: i < 5,
-      blocks: i < 5 ? [{ start: '08:00', end: '17:00' }] : [],
+      blocks: i < 5 ? [{ start: '07:00', end: '21:00' }] : [],
     })),
     specialRequirements: [],
     hourQuotas: [],
@@ -239,7 +239,7 @@ function DayScheduleEditor({ schedule, onChange }) {
 function SpecialRequirementEditor({ requirements, onChange, specialties }) {
   const addReq = () => {
     onChange([...requirements, {
-      id: uuid(), specialty: '', level: null, days: [], timeBlock: { start: '08:00', end: '17:00' },
+      id: uuid(), specialty: '', level: null, days: [], timeBlock: { start: '07:00', end: '21:00' },
     }]);
   };
   const updateReq = (idx, patch) => {
