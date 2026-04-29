@@ -62,6 +62,7 @@ function migrateFacility(facility) {
   facility.hourQuotas = facility.hourQuotas || [];
   facility.hourQuotas = facility.hourQuotas.map(q => ({
     ...q,
+    specialties: q.specialties ?? (q.specialty ? [{ name: q.specialty, level: q.level ?? null }] : []),
     maxHoursPerWeek: q.maxHoursPerWeek != null ? q.maxHoursPerWeek : 0,
   }));
   return facility;
@@ -73,7 +74,7 @@ function migrateSingleFacilityData(data) {
     const specNames = new Set();
     data.doctors.forEach(d => { if (d.specialty) specNames.add(d.specialty); });
     data.facility.specialRequirements.forEach(r => { if (r.specialty) specNames.add(r.specialty); });
-    data.facility.hourQuotas.forEach(q => { if (q.specialty) specNames.add(q.specialty); });
+    data.facility.hourQuotas.forEach(q => { (q.specialties ?? []).forEach(e => { if (e.name) specNames.add(e.name); }); });
     data.specialties = [...specNames].map(name => ({ id: uuid(), name, levels: [] }));
     data.doctors = data.doctors.map(d => ({ ...d, level: d.level || null }));
     data.facility.specialRequirements = data.facility.specialRequirements.map(r => ({ ...r, level: r.level != null ? r.level : null }));
@@ -87,7 +88,7 @@ function getSpecialtyColorMap(doctors, requirements, quotas) {
   const specs = new Set();
   doctors.forEach(d => specs.add(d.specialty));
   requirements.forEach(r => specs.add(r.specialty));
-  quotas.forEach(q => specs.add(q.specialty));
+  quotas.forEach(q => (q.specialties ?? []).forEach(e => specs.add(e.name)));
   const map = {};
   let i = 0;
   specs.forEach(s => { if (s) { map[s] = SPECIALTY_COLORS[i % SPECIALTY_COLORS.length]; i++; } });
@@ -316,7 +317,7 @@ function SpecialRequirementEditor({ requirements, onChange, specialties }) {
 
 function HourQuotaEditor({ quotas, onChange, specialties }) {
   const addQuota = () => {
-    onChange([...quotas, { id: uuid(), specialty: '', level: null, minHoursPerWeek: 0, maxHoursPerWeek: 0 }]);
+    onChange([...quotas, { id: uuid(), specialties: [], minHoursPerWeek: 0, maxHoursPerWeek: 0 }]);
   };
   const updateQuota = (idx, patch) => {
     const next = [...quotas];
@@ -325,6 +326,18 @@ function HourQuotaEditor({ quotas, onChange, specialties }) {
   };
   const removeQuota = (idx) => onChange(quotas.filter((_,i) => i !== idx));
 
+  const addSpecialtyRow = (idx) => {
+    const rows = [...(quotas[idx].specialties || []), { name: '', level: null }];
+    updateQuota(idx, { specialties: rows });
+  };
+  const updateSpecialtyRow = (idx, rowIdx, patch) => {
+    const rows = [...(quotas[idx].specialties || [])];
+    rows[rowIdx] = { ...rows[rowIdx], ...patch };
+    updateQuota(idx, { specialties: rows });
+  };
+  const removeSpecialtyRow = (idx, rowIdx) => {
+    updateQuota(idx, { specialties: (quotas[idx].specialties || []).filter((_,i) => i !== rowIdx) });
+  };
   const getSpecLevels = (specName) => {
     const spec = specialties.find(s => s.name === specName);
     return spec ? spec.levels : [];
@@ -332,44 +345,49 @@ function HourQuotaEditor({ quotas, onChange, specialties }) {
 
   return (
     <div>
-      {quotas.map((q, idx) => {
-        const levels = getSpecLevels(q.specialty);
-        return (
+      {quotas.map((q, idx) => (
         <div key={q.id} className="quota-card">
-          <div style={{display:'flex',gap:10,alignItems:'flex-end'}}>
-            <div style={{flex:1}}>
-              <label className="form-label">Specjalizacja</label>
-              <select value={q.specialty} onChange={e => updateQuota(idx, { specialty: e.target.value, level: null })}>
-                <option value="">— Wybierz —</option>
-                {specialties.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-              </select>
+          <div style={{display:'flex',gap:10,alignItems:'flex-start',flexWrap:'wrap'}}>
+            <div style={{flex:'1 1 300px'}}>
+              <label className="form-label">Specjalizacje</label>
+              {(q.specialties || []).map((row, rowIdx) => {
+                const levels = getSpecLevels(row.name);
+                return (
+                  <div key={rowIdx} style={{display:'flex',gap:6,alignItems:'center',marginBottom:4}}>
+                    <select value={row.name} onChange={e => updateSpecialtyRow(idx, rowIdx, { name: e.target.value, level: null })} style={{flex:1}}>
+                      <option value="">— Wybierz —</option>
+                      {specialties.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                    </select>
+                    {levels.length > 0 && (
+                      <select value={row.level || ''} onChange={e => updateSpecialtyRow(idx, rowIdx, { level: e.target.value || null })} style={{flex:1}}>
+                        <option value="">Dowolny poziom</option>
+                        {levels.map(l => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    )}
+                    <button className="btn btn-sm btn-danger btn-ghost" onClick={() => removeSpecialtyRow(idx, rowIdx)}>✕</button>
+                  </div>
+                );
+              })}
+              <button className="btn btn-sm" style={{marginTop:2}} onClick={() => addSpecialtyRow(idx)}>+ Dodaj specjalizację</button>
             </div>
-            {levels.length > 0 && (
-              <div style={{flex:1}}>
-                <label className="form-label">Poziom</label>
-                <select value={q.level || ''} onChange={e => updateQuota(idx, { level: e.target.value || null })}>
-                  <option value="">Dowolny poziom</option>
-                  {levels.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
+            <div style={{display:'flex',gap:10,alignItems:'flex-end'}}>
+              <div style={{width:140}}>
+                <label className="form-label">Min godz./tydzień</label>
+                <input type="number" step="0.5" value={q.minHoursPerWeek}
+                  onChange={e => updateQuota(idx, { minHoursPerWeek: e.target.value === '' ? '' : parseFloat(e.target.value) || '' })}
+                  onBlur={e => { if (e.target.value === '' || isNaN(parseFloat(e.target.value)) || parseFloat(e.target.value) < 0) updateQuota(idx, { minHoursPerWeek: 0 }); }} />
               </div>
-            )}
-            <div style={{width:140}}>
-              <label className="form-label">Min godz./tydzień</label>
-              <input type="number" step="0.5" value={q.minHoursPerWeek}
-                onChange={e => updateQuota(idx, { minHoursPerWeek: e.target.value === '' ? '' : parseFloat(e.target.value) || '' })}
-                onBlur={e => { if (e.target.value === '' || isNaN(parseFloat(e.target.value)) || parseFloat(e.target.value) < 0) updateQuota(idx, { minHoursPerWeek: 0 }); }} />
+              <div style={{width:140}}>
+                <label className="form-label">Max godz./tydzień</label>
+                <input type="number" step="0.5" value={q.maxHoursPerWeek}
+                  onChange={e => updateQuota(idx, { maxHoursPerWeek: e.target.value === '' ? '' : parseFloat(e.target.value) || '' })}
+                  onBlur={e => { if (e.target.value === '' || isNaN(parseFloat(e.target.value)) || parseFloat(e.target.value) < 0) updateQuota(idx, { maxHoursPerWeek: 0 }); }} />
+              </div>
+              <button className="btn btn-sm btn-danger btn-ghost" style={{marginBottom:1}} onClick={() => removeQuota(idx)}>✕</button>
             </div>
-            <div style={{width:140}}>
-              <label className="form-label">Max godz./tydzień</label>
-              <input type="number" step="0.5" value={q.maxHoursPerWeek}
-                onChange={e => updateQuota(idx, { maxHoursPerWeek: e.target.value === '' ? '' : parseFloat(e.target.value) || '' })}
-                onBlur={e => { if (e.target.value === '' || isNaN(parseFloat(e.target.value)) || parseFloat(e.target.value) < 0) updateQuota(idx, { maxHoursPerWeek: 0 }); }} />
-            </div>
-            <button className="btn btn-sm btn-danger btn-ghost" style={{marginBottom:1}} onClick={() => removeQuota(idx)}>✕</button>
           </div>
         </div>
-        );
-      })}
+      ))}
       <button className="btn btn-sm" onClick={addQuota}>+ Dodaj limit</button>
     </div>
   );
@@ -402,7 +420,7 @@ function SpecialtiesTab({ specialties, onChange, doctors, facility }) {
   const usageCount = (specName) => {
     const dCount = doctors.filter(d => d.specialty === specName).length;
     const rCount = (facility.specialRequirements || []).filter(r => r.specialty === specName).length;
-    const qCount = (facility.hourQuotas || []).filter(q => q.specialty === specName).length;
+    const qCount = (facility.hourQuotas || []).filter(q => (q.specialties || []).some(e => e.name === specName)).length;
     return { dCount, rCount, qCount };
   };
 

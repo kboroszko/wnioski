@@ -192,7 +192,7 @@ describe('runSolver', () => {
   // 11. Phase 4 quota met — enough hours for specialty
   test('Phase 4: quota met → success', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 10 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'General', level: null }], minHoursPerWeek: 10 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -204,7 +204,7 @@ describe('runSolver', () => {
   // 12. Phase 4 quota unmet — insufficient hours
   test('Phase 4: quota unmet → error with actual vs required', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'Radiology', minHoursPerWeek: 20 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'Radiology', level: null }], minHoursPerWeek: 20 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -218,7 +218,7 @@ describe('runSolver', () => {
   // 13. Phase 4 zero quota — minHoursPerWeek: 0 skipped silently
   test('Phase 4: zero quota is skipped silently', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'Radiology', minHoursPerWeek: 0 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'Radiology', level: null }], minHoursPerWeek: 0 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -268,8 +268,8 @@ describe('runSolver', () => {
         timeBlock: { start: '09:00', end: '12:00' },
       }],
       hourQuotas: [
-        { id: 'q-1', specialty: 'General', minHoursPerWeek: 20 },
-        { id: 'q-2', specialty: 'Cardiology', minHoursPerWeek: 15 },
+        { id: 'q-1', specialties: [{ name: 'General', level: null }], minHoursPerWeek: 20 },
+        { id: 'q-2', specialties: [{ name: 'Cardiology', level: null }], minHoursPerWeek: 15 },
       ],
     });
 
@@ -353,7 +353,7 @@ describe('runSolver', () => {
   test('Phase 4 level: quota with level=null aggregates all doctor levels', () => {
     const facility = makeFacility({
       roomCount: 3,
-      hourQuotas: [{ id: 'q-1', specialty: 'Cardiology', level: null, minHoursPerWeek: 20 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'Cardiology', level: null }], minHoursPerWeek: 20 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '12:00' }];
@@ -370,7 +370,7 @@ describe('runSolver', () => {
   // 21. Phase 4 specific level quota met
   test('Phase 4 level: specific level quota met', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'Cardiology', level: 'senior', minHoursPerWeek: 10 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'Cardiology', level: 'senior' }], minHoursPerWeek: 10 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -382,7 +382,7 @@ describe('runSolver', () => {
   // 22. Phase 4 specific level quota unmet — wrong level doesn't count
   test('Phase 4 level: specific level quota unmet when only wrong level present', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'Cardiology', level: 'senior', minHoursPerWeek: 10 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'Cardiology', level: 'senior' }], minHoursPerWeek: 10 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -461,7 +461,7 @@ describe('runSolver', () => {
   // 28. Field worker still counts for coverage and hour quotas
   test('Field worker still contributes to coverage and hour quotas', () => {
     const facility = makeFacility({ roomCount: 1 });
-    facility.hourQuotas = [{ id: 'q1', specialty: 'General', level: null, minHoursPerWeek: 80 }];
+    facility.hourQuotas = [{ id: 'q1', specialties: [{ name: 'General', level: null }], minHoursPerWeek: 80 }];
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
     const doc1 = makeDoctor('Dr. A', 'General', weekBlocks);
@@ -486,7 +486,7 @@ describe('runSolver', () => {
   // 30. Phase 4 max quota: under limit → success
   test('Phase 4: max quota met (under limit) → success', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 0, maxHoursPerWeek: 50 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'General', level: null }], minHoursPerWeek: 0, maxHoursPerWeek: 50 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -498,7 +498,7 @@ describe('runSolver', () => {
   // 31. Phase 4 max quota exceeded → error
   test('Phase 4: max quota exceeded → error', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 0, maxHoursPerWeek: 10 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'General', level: null }], minHoursPerWeek: 0, maxHoursPerWeek: 10 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -511,7 +511,7 @@ describe('runSolver', () => {
   // 32. Both min=0 and max=0 → skipped
   test('Phase 4: both min and max zero → skipped', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'Radiology', minHoursPerWeek: 0, maxHoursPerWeek: 0 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'Radiology', level: null }], minHoursPerWeek: 0, maxHoursPerWeek: 0 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -523,7 +523,7 @@ describe('runSolver', () => {
   // 33. Both min and max set, value within range → success
   test('Phase 4: both min and max, within range → success', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 10, maxHoursPerWeek: 50 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'General', level: null }], minHoursPerWeek: 10, maxHoursPerWeek: 50 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -535,7 +535,7 @@ describe('runSolver', () => {
   // 34. Both min and max set, below min → min error only
   test('Phase 4: both min and max, below min → min error', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'Radiology', minHoursPerWeek: 10, maxHoursPerWeek: 50 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'Radiology', level: null }], minHoursPerWeek: 10, maxHoursPerWeek: 50 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -548,7 +548,7 @@ describe('runSolver', () => {
   // 35. Both min and max set, above max → max error only
   test('Phase 4: both min and max, above max → max error', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 10, maxHoursPerWeek: 20 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'General', level: null }], minHoursPerWeek: 10, maxHoursPerWeek: 20 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -561,7 +561,7 @@ describe('runSolver', () => {
   // 36. Max-only quota (min=0, max=20) enforced
   test('Phase 4: max-only quota enforced when min is 0', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'General', minHoursPerWeek: 0, maxHoursPerWeek: 20 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'General', level: null }], minHoursPerWeek: 0, maxHoursPerWeek: 20 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];
@@ -574,7 +574,7 @@ describe('runSolver', () => {
   // 37. Level-aware max quota
   test('Phase 4 level: max quota with specific level exceeded', () => {
     const facility = makeFacility({
-      hourQuotas: [{ id: 'q-1', specialty: 'Cardiology', level: 'senior', minHoursPerWeek: 0, maxHoursPerWeek: 5 }],
+      hourQuotas: [{ id: 'q-1', specialties: [{ name: 'Cardiology', level: 'senior' }], minHoursPerWeek: 0, maxHoursPerWeek: 5 }],
     });
     const weekBlocks = {};
     for (let i = 0; i < 5; i++) weekBlocks[i] = [{ start: '08:00', end: '17:00' }];

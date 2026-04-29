@@ -97,6 +97,14 @@ export function sumMinutes(blocks) {
 
 // ─── SPECIALTY LEVEL MATCHING ─────────────────────
 export function matchesSpecialtyLevel(doctor, specReq) {
+  // New format: specReq.specialties = [{ name, level }]
+  if (Array.isArray(specReq.specialties)) {
+    return specReq.specialties.some(entry =>
+      doctor.specialty === entry.name &&
+      (entry.level == null || entry.level === doctor.level)
+    );
+  }
+  // Old format (special requirements still use specialty+level)
   if (doctor.specialty !== specReq.specialty) return false;
   if (specReq.level != null && specReq.level !== doctor.level) return false;
   return true;
@@ -211,6 +219,9 @@ export function runSolver(facility, doctors) {
     const hasMin = quota.minHoursPerWeek > 0;
     const hasMax = (quota.maxHoursPerWeek || 0) > 0;
     if (!hasMin && !hasMax) continue;
+    const label = Array.isArray(quota.specialties)
+      ? quota.specialties.map(e => e.level ? `${e.name} (${e.level})` : e.name).join(' + ')
+      : (quota.specialty || '');
     let totalMins = 0;
     effectiveSchedules.forEach(es => {
       if (matchesSpecialtyLevel(es.doctor, quota)) {
@@ -219,10 +230,10 @@ export function runSolver(facility, doctors) {
     });
     const totalHrs = totalMins / 60;
     if (hasMin && totalHrs < quota.minHoursPerWeek) {
-      errors.push(`Specjalizacja „${quota.specialty}" ma przydzielone ${totalHrs.toFixed(1)}h, wymagane minimum ${quota.minHoursPerWeek}h`);
+      errors.push(`Specjalizacja „${label}" ma przydzielone ${totalHrs.toFixed(1)}h, wymagane minimum ${quota.minHoursPerWeek}h`);
     }
     if (hasMax && totalHrs > quota.maxHoursPerWeek) {
-      errors.push(`Specjalizacja „${quota.specialty}" ma przydzielone ${totalHrs.toFixed(1)}h, dozwolone maksimum ${quota.maxHoursPerWeek}h`);
+      errors.push(`Specjalizacja „${label}" ma przydzielone ${totalHrs.toFixed(1)}h, dozwolone maksimum ${quota.maxHoursPerWeek}h`);
     }
   }
 
