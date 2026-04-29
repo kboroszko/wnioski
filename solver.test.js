@@ -836,4 +836,49 @@ describe('checkCrossFacilityConflicts', () => {
     expect(errors.length).toBe(1);
     expect(errors[0]).toContain('Pon');
   });
+
+  test('detects conflict when names differ by one deletion (typo)', () => {
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '10:00', end: '14:00' }];
+
+    const doc1 = makeDoctor('Jan Kowalski', 'General', blocksA);
+    const doc2 = makeDoctor('Jan Kowalsi', 'General', blocksB); // missing 'k'
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('Konflikt');
+  });
+
+  test('detects conflict when names differ by one substitution (typo)', () => {
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '10:00', end: '14:00' }];
+
+    const doc1 = makeDoctor('Jan Kowalski', 'General', blocksA);
+    const doc2 = makeDoctor('Jan Kowakski', 'General', blocksB); // l→k substitution
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('Konflikt');
+  });
+
+  test('no conflict when names differ by more than one letter', () => {
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '10:00', end: '14:00' }];
+
+    // 'jankowalski' (11) vs 'jankowski' (9) — length diff 2, distance > 1
+    const doc1 = makeDoctor('Jan Kowalski', 'General', blocksA);
+    const doc2 = makeDoctor('Jan Kowski', 'General', blocksB);
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors).toEqual([]);
+  });
 });

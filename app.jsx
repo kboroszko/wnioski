@@ -786,14 +786,15 @@ function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates }) 
 
   const generate = () => {
     const solverResult = runSolver(facility, doctors);
-    if (solverResult.success && allFacilityStates && allFacilityStates.length > 1) {
-      const crossErrors = checkCrossFacilityConflicts(activeFacilityState, allFacilityStates);
-      if (crossErrors.length > 0) {
-        setResult({ success: false, errors: crossErrors });
-        return;
-      }
-    }
-    setResult(solverResult);
+    let crossErrors = [];
+    if (allFacilityStates && allFacilityStates.length > 1)
+      crossErrors = checkCrossFacilityConflicts(activeFacilityState, allFacilityStates);
+    if (crossErrors.length > 0 && !solverResult.success)
+      setResult({ success: false, errors: [...solverResult.errors, ...crossErrors] });
+    else if (crossErrors.length > 0)
+      setResult({ success: false, errors: crossErrors });
+    else
+      setResult(solverResult);
   };
 
   return (
