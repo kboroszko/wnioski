@@ -1139,7 +1139,7 @@ function App() {
         <header className="app-header">
           <div className="app-logo">
             <div className="app-logo-icon">📅</div>
-            <span>Planowanie grafiku</span>
+            <span>Planowanie Grafiku</span>
           </div>
         </header>
 
