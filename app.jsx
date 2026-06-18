@@ -932,7 +932,7 @@ function Toast({ message, type, onClose }) {
 }
 
 // ─── SIDEBAR ──────────────────────────────────────
-function FacilitySidebar({ facilities, activeFacilityId, onSwitch, onAdd, onDuplicate, onDelete, onSave, onLoadClick, fileInputRef, onLoad }) {
+function FacilitySidebar({ facilities, activeFacilityId, onSwitch, onAdd, onDuplicate, onDelete, onSave, onOverwriteClick, onMergeClick, fileInputRef, onLoad }) {
   return (
     <aside className="facility-sidebar">
       <div className="sidebar-header">
@@ -969,7 +969,8 @@ function FacilitySidebar({ facilities, activeFacilityId, onSwitch, onAdd, onDupl
       </div>
       <div className="sidebar-actions">
         <button className="btn btn-sm" onClick={onSave} style={{width:'100%'}}>💾 Zapisz</button>
-        <button className="btn btn-sm" onClick={onLoadClick} style={{width:'100%'}}>📂 Wczytaj</button>
+        <button className="btn btn-sm" onClick={onOverwriteClick} style={{width:'100%'}}>📂 Wczytaj i nadpisz</button>
+        <button className="btn btn-sm" onClick={onMergeClick} style={{width:'100%'}}>📂 Wczytaj i scal</button>
         <input ref={fileInputRef} type="file" accept=".json" style={{display:'none'}} onChange={onLoad} />
       </div>
     </aside>
@@ -982,6 +983,7 @@ function App() {
   const [tab, setTab] = useState(0);
   const [toast, setToast] = useState(null);
   const fileInputRef = useRef(null);
+  const loadModeRef = useRef('overwrite');
 
   const showToast = (message, type='success') => setToast({ message, type });
 
@@ -1075,9 +1077,20 @@ function App() {
     showToast('Dane zapisane do pliku');
   };
 
+  const handleOverwriteClick = () => {
+    loadModeRef.current = 'overwrite';
+    fileInputRef.current?.click();
+  };
+
+  const handleMergeClick = () => {
+    loadModeRef.current = 'merge';
+    fileInputRef.current?.click();
+  };
+
   const handleLoad = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const mode = loadModeRef.current;
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
@@ -1107,12 +1120,32 @@ function App() {
 
         if (facilities.length === 0) throw new Error('Brak placówek w pliku');
 
-        setAppState({
-          facilities,
-          activeFacilityId: facilities[0].id,
-        });
-        setTab(0);
-        showToast('Dane wczytane pomyślnie');
+        if (mode === 'overwrite') {
+          if (!window.confirm('Obecny stan zostanie utracony. Czy na pewno chcesz kontynuować?')) return;
+          setAppState({
+            facilities,
+            activeFacilityId: facilities[0].id,
+          });
+          setTab(0);
+          showToast('Dane wczytane pomyślnie');
+        } else {
+          setAppState(prev => {
+            const existingNames = new Set(prev.facilities.map(f => f.facility.name));
+            const toAdd = facilities.map(fs => {
+              let name = fs.facility.name;
+              while (existingNames.has(name)) {
+                name = name + ' (wczytany)';
+              }
+              existingNames.add(name);
+              return { ...fs, id: uuid(), facility: { ...fs.facility, id: uuid(), name } };
+            });
+            return {
+              ...prev,
+              facilities: [...prev.facilities, ...toAdd],
+            };
+          });
+          showToast('Dane scalone pomyślnie');
+        }
       } catch (err) {
         showToast('Błąd wczytywania: ' + err.message, 'error');
       }
@@ -1131,7 +1164,8 @@ function App() {
         onDuplicate={duplicateFacility}
         onDelete={deleteFacility}
         onSave={handleSave}
-        onLoadClick={() => fileInputRef.current?.click()}
+        onOverwriteClick={handleOverwriteClick}
+        onMergeClick={handleMergeClick}
         fileInputRef={fileInputRef}
         onLoad={handleLoad}
       />
