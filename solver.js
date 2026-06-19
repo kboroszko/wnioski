@@ -14,7 +14,7 @@ export function normalizeName(name) {
   return name
     .toLowerCase()
     .replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, ch => POLISH_DIACRITICS[ch] || ch)
-    .replace(/\s+/g, '')
+    .replace(/[\s-]+/g, '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 }
