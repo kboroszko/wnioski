@@ -135,8 +135,8 @@ function TimeInput({ value, onChange, className, style }) {
 
 function TimeBlockEditor({ blocks, onChange, disabled }) {
   const [adding, setAdding] = useState(false);
-  const [newStart, setNewStart] = useState('08:00');
-  const [newEnd, setNewEnd] = useState('17:00');
+  const [newStart, setNewStart] = useState('07:00');
+  const [newEnd, setNewEnd] = useState('21:00');
   const [editIdx, setEditIdx] = useState(null);
   const [editStart, setEditStart] = useState('');
   const [editEnd, setEditEnd] = useState('');
