@@ -561,7 +561,7 @@ function FacilityTab({ facility, onChange, specialties }) {
 // ─── TAB: DOCTORS ─────────────────────────────────
 function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
   const [form, setForm] = useState(doctor || {
-    id: uuid(), name: '', specialty: '', level: null, fieldWork: false,
+    id: uuid(), name: '', specialty: '', level: null, fieldWork: false, remoteWork: false,
     availability: Array.from({length:7}, (_,i) => ({ day: i, blocks: [] })),
   });
 
@@ -604,6 +604,13 @@ function DoctorForm({ doctor, onSave, onCancel, facility, specialties }) {
               <input type="checkbox" checked={!!form.fieldWork}
                 onChange={e => update({ fieldWork: e.target.checked })} />
               Pracuje w terenie
+            </label>
+          </div>
+          <div className="form-group" style={{display:'flex',alignItems:'center',paddingTop:22}}>
+            <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:'0.88rem'}}>
+              <input type="checkbox" checked={!!form.remoteWork}
+                onChange={e => update({ remoteWork: e.target.checked })} />
+              Pracuje online
             </label>
           </div>
         </div>
@@ -679,6 +686,11 @@ function DoctorCard({ doctor, facility, onEdit, onDelete, colorMap }) {
           {doctor.fieldWork && (
             <span className="specialty-tag" style={{background:'var(--green-bg,#e6f4ea)', color:'var(--green,#1a7f37)', border:'1px solid var(--green-border,#a7d8b8)', marginTop:4, marginLeft:4}}>
               w terenie
+            </span>
+          )}
+          {doctor.remoteWork && (
+            <span className="specialty-tag" style={{background:'var(--green-bg,#e6f4ea)', color:'var(--green,#1a7f37)', border:'1px solid var(--green-border,#a7d8b8)', marginTop:4, marginLeft:4}}>
+              online
             </span>
           )}
         </div>
@@ -853,6 +865,11 @@ function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates }) 
                           {p.fieldWork && (
                             <span className="specialty-tag" style={{background:'var(--green-bg,#e6f4ea)', color:'var(--green,#1a7f37)', border:'1px solid var(--green-border,#a7d8b8)', marginLeft:4}}>
                               w terenie
+                            </span>
+                          )}
+                          {p.remoteWork && (
+                            <span className="specialty-tag" style={{background:'var(--green-bg,#e6f4ea)', color:'var(--green,#1a7f37)', border:'1px solid var(--green-border,#a7d8b8)', marginLeft:4}}>
+                              online
                             </span>
                           )}
                         </td>

@@ -173,13 +173,13 @@ export function runSolver(facility, doctors) {
     }
   }
 
-  // Phase 2.5: Room Capacity (exclude field workers — they don't need a room)
+  // Phase 2.5: Room Capacity (exclude field workers and online workers — they don't need a room)
   for (let day = 0; day < 7; day++) {
     const facDay = facility.openingHours[day];
     if (!facDay.enabled) continue;
     const events = [];
     effectiveSchedules.forEach(es => {
-      if (es.doctor.fieldWork) return;
+      if (es.doctor.fieldWork || es.doctor.remoteWork) return;
       es.effective[day].blocks.forEach(b => {
         events.push({ t: toMinutes(b.start), type: 1 });
         events.push({ t: toMinutes(b.end), type: -1 });
@@ -266,6 +266,7 @@ export function runSolver(facility, doctors) {
       specialty: es.doctor.specialty,
       level: es.doctor.level || null,
       fieldWork: !!es.doctor.fieldWork,
+      remoteWork: !!es.doctor.remoteWork,
       weekSchedule,
       totalWeeklyHours: totalMins / 60,
       hasClamp: es.hasClamp,
@@ -295,6 +296,9 @@ export function checkCrossFacilityConflicts(activeFacilityState, allFacilityStat
       for (const otherDoc of otherFS.doctors) {
         const otherNorm = normalizeName(otherDoc.name);
         if (otherNorm !== docNorm && levenshtein(otherNorm, docNorm) > 1) continue;
+
+        // Online work needs no commute, so the margin conflict doesn't apply
+        if (doc.remoteWork || otherDoc.remoteWork) continue;
 
         // Same normalized name found in another facility — check each day
         for (let day = 0; day < 7; day++) {
