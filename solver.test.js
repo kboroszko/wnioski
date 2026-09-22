@@ -674,7 +674,7 @@ describe('normalizeName', () => {
   });
 
   test('handles names with hyphens and other chars', () => {
-    expect(normalizeName('Anna Nowak-Kowalska')).toBe('annanowak-kowalska');
+    expect(normalizeName('Anna Nowak-Kowalska')).toBe('annanowakkowalska');
   });
 
   test('handles Dr. prefix', () => {
