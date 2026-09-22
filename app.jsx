@@ -43,6 +43,7 @@ function makeDefaultFacilityState() {
     specialties: [],
     facility: makeDefaultFacility(),
     doctors: [],
+    planResult: null,
   };
 }
 
@@ -789,8 +790,8 @@ function DoctorsTab({ doctors, facility, onUpdate, specialties }) {
 }
 
 // ─── TAB: PLAN ────────────────────────────────────
-function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates }) {
-  const [result, setResult] = useState(null);
+function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates, planResult, onPlanResultChange }) {
+  const result = planResult;
   const colorMap = useMemo(() =>
     getSpecialtyColorMap(doctors, facility.specialRequirements, facility.hourQuotas),
     [doctors, facility.specialRequirements, facility.hourQuotas]
@@ -803,22 +804,26 @@ function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates }) 
       collisions = checkCrossFacilityConflicts(activeFacilityState, allFacilityStates);
 
     const errors = solverResult.errors || [];
+    const plan = solverResult.plan;
+
+    // Same plan/errors as before: keep the existing result (and any accepted/success state) untouched.
+    if (result && JSON.stringify({ errors: result.errors, collisions: result.collisions, plan: result.plan }) === JSON.stringify({ errors, collisions, plan })) {
+      return;
+    }
+
     const hasIssues = errors.length > 0 || collisions.length > 0;
-    setResult({ success: !hasIssues, errors, collisions, plan: solverResult.plan, accepted: false });
+    onPlanResultChange({ success: !hasIssues, errors, collisions, plan, accepted: false });
   };
 
+  // Generate immediately whenever this tab is opened.
+  useEffect(() => { generate(); }, []);
+
   const acceptIssues = () => {
-    setResult(r => ({ ...r, success: true, accepted: true }));
+    onPlanResultChange({ ...result, success: true, accepted: true });
   };
 
   return (
     <div>
-      <div style={{textAlign:'center',marginBottom:24}}>
-        <button className="btn btn-primary" style={{padding:'12px 32px',fontSize:'1rem'}} onClick={generate}>
-          ⚡ Generuj plan
-        </button>
-      </div>
-
       {result && !result.success && (
         <div className="card">
           <div className="card-title" style={{color:'var(--red)'}}>
@@ -949,7 +954,7 @@ function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates }) 
       {!result && (
         <div className="empty-state">
           <div className="icon">📋</div>
-          <p>Skonfiguruj placówkę i personel, a następnie wygeneruj plan.</p>
+          <p>Generowanie planu…</p>
         </div>
       )}
     </div>
@@ -1138,6 +1143,7 @@ function App() {
             specialties: fs.specialties || [],
             facility: migrateFacility(fs.facility),
             doctors: fs.doctors || [],
+            planResult: null,
           }));
         } else if (data.facility && Array.isArray(data.doctors)) {
           // v1 or v2: single facility
@@ -1147,6 +1153,7 @@ function App() {
             specialties: migrated.specialties,
             facility: migrated.facility,
             doctors: migrated.doctors,
+            planResult: null,
           }];
         } else {
           throw new Error('Nieprawidłowy schemat');
@@ -1224,7 +1231,7 @@ function App() {
             <span className="tab-badge">{activeFS.doctors.length}</span>
           </button>
           <button className={`tab-btn ${tab===3?'active':''}`} onClick={()=>setTab(3)}>
-            Generuj plan
+            Plan
           </button>
         </div>
 
@@ -1246,7 +1253,9 @@ function App() {
           )}
           {tab === 3 && (
             <PlanTab facility={activeFS.facility} doctors={activeFS.doctors}
-              activeFacilityState={activeFS} allFacilityStates={appState.facilities} />
+              activeFacilityState={activeFS} allFacilityStates={appState.facilities}
+              planResult={activeFS.planResult}
+              onPlanResultChange={planResult => updateActiveFS({ planResult })} />
           )}
         </div>
       </div>
