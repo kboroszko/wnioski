@@ -964,7 +964,7 @@ function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates, pl
 // ─── TAB: FULL SCHEDULE (ALL FACILITIES) ──────────
 function FullScheduleTab({ facilities }) {
   const { errorFacilities, rows } = useMemo(() => {
-    const errorFacilities = [];
+    const facilityErrorIds = new Set();
     const rowMap = new Map();
 
     facilities.forEach(fs => {
@@ -976,7 +976,7 @@ function FullScheduleTab({ facilities }) {
         solverResult = { errors: [String(err.message || err)], plan: [] };
       }
       if (solverResult.errors && solverResult.errors.length > 0) {
-        errorFacilities.push(facilityName);
+        facilityErrorIds.add(fs.id);
       }
       (solverResult.plan || []).forEach(p => {
         const key = normalizeName(p.doctorName) || p.doctorId;
@@ -986,7 +986,7 @@ function FullScheduleTab({ facilities }) {
           rowMap.set(key, row);
         }
         p.weekSchedule.forEach((blocks, day) => {
-          blocks.forEach(b => row.days[day].push({ start: b.start, end: b.end, facility: facilityName }));
+          blocks.forEach(b => row.days[day].push({ start: b.start, end: b.end, facility: facilityName, facilityId: fs.id }));
         });
       });
     });
@@ -999,10 +999,16 @@ function FullScheduleTab({ facilities }) {
         for (let i = 1; i < sorted.length; i++) {
           if (toMinutes(sorted[i].start) < toMinutes(sorted[i-1].end)) collision = true;
         }
+        // A collision is caused jointly by every facility with a tile in this cell.
+        if (collision) sorted.forEach(t => facilityErrorIds.add(t.facilityId));
         return { tiles: sorted, collision };
       }),
     }));
     rows.sort((a, b) => (a.specialty || '').localeCompare(b.specialty || '') || (a.name || '').localeCompare(b.name || ''));
+
+    const errorFacilities = facilities
+      .filter(fs => facilityErrorIds.has(fs.id))
+      .map(fs => fs.facility.name || 'Bez nazwy');
 
     return { errorFacilities, rows };
   }, [facilities]);
@@ -1342,7 +1348,7 @@ function App() {
         )}
 
         {view === 'full' ? (
-          <div className="main-content">
+          <div className="main-content main-content-full">
             <FullScheduleTab facilities={appState.facilities} />
           </div>
         ) : (
