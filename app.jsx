@@ -822,8 +822,13 @@ function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates, pl
     onPlanResultChange({ ...result, success: true, accepted: true });
   };
 
+  const [warningDismissed, setWarningDismissed] = useState(false);
+  useEffect(() => { setWarningDismissed(false); }, [result]);
+
+  const handlePrint = () => window.print();
+
   return (
-    <div>
+    <div id="printable-plan">
       {result && !result.success && (
         <div className="card">
           <div className="card-title" style={{color:'var(--red)'}}>
@@ -845,24 +850,27 @@ function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates, pl
 
       {result && result.success && (
         <div>
-          {result.accepted && (result.errors.length > 0 || result.collisions.length > 0) && (
-            <div className="error-item" style={{marginBottom:16, background:'var(--orange-bg)', color:'var(--orange)', borderColor:'var(--orange)'}}>
+          {result.accepted && !warningDismissed && (result.errors.length > 0 || result.collisions.length > 0) && (
+            <div className="error-item" style={{marginBottom:16, background:'var(--orange-bg)', color:'var(--orange)', borderColor:'var(--orange)', position:'relative', paddingRight:36}}>
+              <button className="btn-icon btn-ghost no-print" style={{position:'absolute', top:6, right:6, width:24, height:24, color:'var(--orange)'}} onClick={() => setWarningDismissed(true)} aria-label="Zamknij">✕</button>
               ⚠️ Plan wygenerowany mimo naruszeń reguł planowania:
               {result.errors.map((err, i) => <div key={`e${i}`}>{err}</div>)}
               {result.collisions.map((err, i) => <div key={`c${i}`}>{err}</div>)}
             </div>
           )}
-          <div className="success-banner">
-            <span>✅</span> Plan wygenerowany pomyślnie — zaplanowano {result.plan.length} pracownik{result.plan.length === 1 ? 'a' : 'ów'}
-          </div>
           <div className="card" style={{padding:0,overflow:'hidden'}}>
-            <div style={{padding:'16px 20px',borderBottom:'1px solid var(--border)'}}>
-              <div style={{fontWeight:700,fontSize:'1.05rem'}}>{facility.name || 'Placówka'}</div>
-              <div style={{fontSize:'0.82rem',color:'var(--text-dim)',marginTop:2}}>
-                {facility.openingHours.filter(d => d.enabled).map((d,i) => DAYS[d.day]).join(', ')}
-                {' · '}
-                {facility.roomCount} gabinet{facility.roomCount === 1 ? '' : facility.roomCount >= 2 && facility.roomCount <= 4 ? 'y' : 'ów'}
+            <div style={{padding:'16px 20px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+              <div>
+                <div style={{fontWeight:700,fontSize:'1.05rem'}}>{facility.name || 'Placówka'}</div>
+                <div style={{fontSize:'0.82rem',color:'var(--text-dim)',marginTop:2}}>
+                  {facility.openingHours.filter(d => d.enabled).map((d,i) => DAYS[d.day]).join(', ')}
+                  {' · '}
+                  {facility.roomCount} gabinet{facility.roomCount === 1 ? '' : facility.roomCount >= 2 && facility.roomCount <= 4 ? 'y' : 'ów'}
+                </div>
               </div>
+              <button className="btn btn-sm no-print" onClick={handlePrint}>
+                🖨️ Drukuj
+              </button>
             </div>
             <div className="plan-table-wrap">
               <table className="plan-table">

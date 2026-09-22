@@ -484,6 +484,13 @@ input:focus, select:focus {
   .tab-btn { padding: 10px 14px; font-size: 0.82rem; }
   .facility-sidebar { width: 200px; }
 }
+
+@media print {
+  body * { visibility: hidden; }
+  #printable-plan, #printable-plan * { visibility: visible; }
+  #printable-plan { position: absolute; left: 0; top: 0; width: 100%; }
+  .no-print { display: none !important; }
+}
 </style>
 </head>
 <body>
