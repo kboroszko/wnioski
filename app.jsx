@@ -997,19 +997,17 @@ function FullScheduleTab({ facilities }) {
 
     const baseRows = [...rowMap.values()].map(row => ({
       ...row,
-      days: row.days.map(tiles => [...tiles].sort((a, b) => toMinutes(a.start) - toMinutes(b.start))),
-    }));
-
-    // Detect cross-facility collisions once on the full (unfiltered) data so the error banner stays accurate.
-    baseRows.forEach(row => {
-      row.days.forEach(tiles => {
-        for (let i = 1; i < tiles.length; i++) {
-          if (toMinutes(tiles[i].start) < toMinutes(tiles[i-1].end)) {
-            tiles.forEach(t => facilityErrorIds.add(t.facilityId));
-          }
+      days: row.days.map(tiles => {
+        const sorted = [...tiles].sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
+        let collision = false;
+        for (let i = 1; i < sorted.length; i++) {
+          if (toMinutes(sorted[i].start) < toMinutes(sorted[i-1].end)) collision = true;
         }
-      });
-    });
+        // A collision is caused jointly by every facility with a tile in this cell.
+        if (collision) sorted.forEach(t => facilityErrorIds.add(t.facilityId));
+        return { tiles: sorted, collision };
+      }),
+    }));
 
     const errorFacilities = facilities
       .filter(fs => facilityErrorIds.has(fs.id))
@@ -1057,18 +1055,7 @@ function FullScheduleTab({ facilities }) {
     const filtered = baseRows
       .filter(r => !excludedSpecLevels.has(specLevelKey(r.specialty, r.level)))
       .filter(r => !nameQuery || normalizeName(r.name).includes(nameQuery))
-      .map(r => ({
-        ...r,
-        days: r.days.map(tiles => {
-          const visible = tiles.filter(t => !excludedFacilityIds.has(t.facilityId));
-          let collision = false;
-          for (let i = 1; i < visible.length; i++) {
-            if (toMinutes(visible[i].start) < toMinutes(visible[i-1].end)) collision = true;
-          }
-          return { tiles: visible, collision };
-        }),
-      }))
-      .filter(r => r.days.some(d => d.tiles.length > 0));
+      .filter(r => r.days.some(d => d.tiles.some(t => !excludedFacilityIds.has(t.facilityId))));
 
     filtered.sort((a, b) => {
       if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
