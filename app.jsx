@@ -798,15 +798,17 @@ function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates }) 
 
   const generate = () => {
     const solverResult = runSolver(facility, doctors);
-    let crossErrors = [];
+    let collisions = [];
     if (allFacilityStates && allFacilityStates.length > 1)
-      crossErrors = checkCrossFacilityConflicts(activeFacilityState, allFacilityStates);
-    if (crossErrors.length > 0 && !solverResult.success)
-      setResult({ success: false, errors: [...solverResult.errors, ...crossErrors] });
-    else if (crossErrors.length > 0)
-      setResult({ success: false, errors: crossErrors });
-    else
-      setResult(solverResult);
+      collisions = checkCrossFacilityConflicts(activeFacilityState, allFacilityStates);
+
+    const errors = solverResult.errors || [];
+    const hasIssues = errors.length > 0 || collisions.length > 0;
+    setResult({ success: !hasIssues, errors, collisions, plan: solverResult.plan, accepted: false });
+  };
+
+  const acceptIssues = () => {
+    setResult(r => ({ ...r, success: true, accepted: true }));
   };
 
   return (
@@ -820,16 +822,31 @@ function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates }) 
       {result && !result.success && (
         <div className="card">
           <div className="card-title" style={{color:'var(--red)'}}>
-            <span className="icon">❌</span> Generowanie planu nie powiodło się
+            <span className="icon">❌</span> Wykryto naruszenia reguł planowania
           </div>
           {result.errors.map((err, i) => (
-            <div key={i} className="error-item">{err}</div>
+            <div key={`e${i}`} className="error-item">{err}</div>
           ))}
+          {result.collisions.map((err, i) => (
+            <div key={`c${i}`} className="error-item">{err}</div>
+          ))}
+          <div style={{textAlign:'center', marginTop:16}}>
+            <button className="btn btn-primary" onClick={acceptIssues}>
+              Generuj mimo naruszeń
+            </button>
+          </div>
         </div>
       )}
 
       {result && result.success && (
         <div>
+          {result.accepted && (result.errors.length > 0 || result.collisions.length > 0) && (
+            <div className="error-item" style={{marginBottom:16, background:'var(--orange-bg)', color:'var(--orange)', borderColor:'var(--orange)'}}>
+              ⚠️ Plan wygenerowany mimo naruszeń reguł planowania:
+              {result.errors.map((err, i) => <div key={`e${i}`}>{err}</div>)}
+              {result.collisions.map((err, i) => <div key={`c${i}`}>{err}</div>)}
+            </div>
+          )}
           <div className="success-banner">
             <span>✅</span> Plan wygenerowany pomyślnie — zaplanowano {result.plan.length} pracownik{result.plan.length === 1 ? 'a' : 'ów'}
           </div>

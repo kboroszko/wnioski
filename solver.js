@@ -128,7 +128,7 @@ export function matchesSpecialtyLevel(doctor, specReq) {
 export function runSolver(facility, doctors) {
   const errors = [];
   if (!doctors || doctors.length === 0) {
-    return { success: false, errors: ['Brak przypisanego personelu.'] };
+    return { success: false, errors: ['Brak przypisanego personelu.'], plan: [] };
   }
 
   // Phase 1: Clamp
@@ -251,9 +251,7 @@ export function runSolver(facility, doctors) {
     }
   }
 
-  if (errors.length > 0) return { success: false, errors };
-
-  // Phase 5: Build plan
+  // Phase 5: Build plan (always built so the caller can force-generate despite violations)
   const plan = effectiveSchedules.map(es => {
     let totalMins = 0;
     const weekSchedule = es.effective.map(d => {
@@ -273,7 +271,7 @@ export function runSolver(facility, doctors) {
     };
   });
 
-  return { success: true, plan };
+  return { success: errors.length === 0, errors, plan };
 }
 
 // ─── CROSS-FACILITY CONFLICT CHECK ──────────────
