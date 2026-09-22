@@ -961,6 +961,105 @@ function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates, pl
   );
 }
 
+// ─── TAB: FULL SCHEDULE (ALL FACILITIES) ──────────
+function FullScheduleTab({ facilities }) {
+  const { errorFacilities, rows } = useMemo(() => {
+    const errorFacilities = [];
+    const rowMap = new Map();
+
+    facilities.forEach(fs => {
+      const facilityName = fs.facility.name || 'Bez nazwy';
+      let solverResult;
+      try {
+        solverResult = runSolver(fs.facility, fs.doctors);
+      } catch (err) {
+        solverResult = { errors: [String(err.message || err)], plan: [] };
+      }
+      if (solverResult.errors && solverResult.errors.length > 0) {
+        errorFacilities.push(facilityName);
+      }
+      (solverResult.plan || []).forEach(p => {
+        const key = normalizeName(p.doctorName) || p.doctorId;
+        let row = rowMap.get(key);
+        if (!row) {
+          row = { name: p.doctorName, specialty: p.specialty, level: p.level, days: Array.from({length:7}, () => []) };
+          rowMap.set(key, row);
+        }
+        p.weekSchedule.forEach((blocks, day) => {
+          blocks.forEach(b => row.days[day].push({ start: b.start, end: b.end, facility: facilityName }));
+        });
+      });
+    });
+
+    const rows = [...rowMap.values()].map(row => ({
+      ...row,
+      days: row.days.map(tiles => {
+        const sorted = [...tiles].sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
+        let collision = false;
+        for (let i = 1; i < sorted.length; i++) {
+          if (toMinutes(sorted[i].start) < toMinutes(sorted[i-1].end)) collision = true;
+        }
+        return { tiles: sorted, collision };
+      }),
+    }));
+    rows.sort((a, b) => (a.specialty || '').localeCompare(b.specialty || '') || (a.name || '').localeCompare(b.name || ''));
+
+    return { errorFacilities, rows };
+  }, [facilities]);
+
+  return (
+    <div>
+      {errorFacilities.length > 0 && (
+        <div className="error-item">
+          Błędy w planach dla: {errorFacilities.join(', ')}
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <div className="empty-state">
+          <div className="icon">📋</div>
+          <p>Brak zaplanowanego personelu.</p>
+        </div>
+      ) : (
+        <div className="card" style={{padding:0, overflow:'hidden'}}>
+          <div className="plan-table-wrap">
+            <table className="plan-table">
+              <thead>
+                <tr>
+                  <th>Specjalizacja</th>
+                  <th>Poziom specjalizacji</th>
+                  <th>Imię i nazwisko</th>
+                  <th className="table-divider-col"></th>
+                  {DAYS.map(d => <th key={d}>{d}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr key={i}>
+                    <td>{row.specialty || '—'}</td>
+                    <td>{row.level || '—'}</td>
+                    <td style={{fontWeight:600, whiteSpace:'nowrap'}}>{row.name}</td>
+                    <td className="table-divider-col"></td>
+                    {row.days.map((cell, d) => (
+                      <td key={d} className={`time-cell${cell.collision ? ' collision-cell' : ''}`}>
+                        {cell.tiles.length === 0
+                          ? <span style={{color:'var(--text-muted)'}}>—</span>
+                          : cell.tiles.map((t, j) => (
+                              <span key={j} className="schedule-tile">{t.start}–{t.end} {t.facility}</span>
+                            ))}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── TOAST ─────────────────────────────────────────
 function Toast({ message, type, onClose }) {
   useEffect(() => {
@@ -1020,6 +1119,7 @@ function FacilitySidebar({ facilities, activeFacilityId, onSwitch, onAdd, onDupl
 function App() {
   const [appState, setAppState] = useState(makeDefaultAppState);
   const [tab, setTab] = useState(0);
+  const [view, setView] = useState('facility'); // 'facility' | 'full'
   const [toast, setToast] = useState(null);
   const fileInputRef = useRef(null);
   const loadModeRef = useRef('overwrite');
@@ -1212,52 +1312,64 @@ function App() {
       />
       <div className="app-main">
         <header className="app-header">
-          <div className="app-logo">
-            <div className="app-logo-icon">📅</div>
-            <span>Planowanie Grafiku</span>
+          <div className="super-tabs">
+            <button className={`super-tab-btn ${view==='facility'?'active':''}`} onClick={()=>setView('facility')}>
+              <span className="app-logo-icon">📅</span> Planowanie Grafiku
+            </button>
+            <button className={`super-tab-btn ${view==='full'?'active':''}`} onClick={()=>setView('full')}>
+              <span className="app-logo-icon">🗓️</span> Pełen harmonogram
+            </button>
           </div>
         </header>
 
-        <div className="tabs-bar">
-          <button className={`tab-btn ${tab===0?'active':''}`} onClick={()=>setTab(0)}>
-            Konfiguracja placówki
-          </button>
-          <button className={`tab-btn ${tab===1?'active':''}`} onClick={()=>setTab(1)}>
-            Specjalizacje
-            <span className="tab-badge">{activeFS.specialties.length}</span>
-          </button>
-          <button className={`tab-btn ${tab===2?'active':''}`} onClick={()=>setTab(2)}>
-            Personel
-            <span className="tab-badge">{activeFS.doctors.length}</span>
-          </button>
-          <button className={`tab-btn ${tab===3?'active':''}`} onClick={()=>setTab(3)}>
-            Plan
-          </button>
-        </div>
+        {view === 'facility' && (
+          <div className="tabs-bar">
+            <button className={`tab-btn ${tab===0?'active':''}`} onClick={()=>setTab(0)}>
+              Konfiguracja placówki
+            </button>
+            <button className={`tab-btn ${tab===1?'active':''}`} onClick={()=>setTab(1)}>
+              Specjalizacje
+              <span className="tab-badge">{activeFS.specialties.length}</span>
+            </button>
+            <button className={`tab-btn ${tab===2?'active':''}`} onClick={()=>setTab(2)}>
+              Personel
+              <span className="tab-badge">{activeFS.doctors.length}</span>
+            </button>
+            <button className={`tab-btn ${tab===3?'active':''}`} onClick={()=>setTab(3)}>
+              Plan
+            </button>
+          </div>
+        )}
 
-        <div className="main-content" key={appState.activeFacilityId}>
-          {tab === 0 && (
-            <FacilityTab facility={activeFS.facility}
-              onChange={facility => updateActiveFS(fs => ({...fs, facility }))}
-              specialties={activeFS.specialties} />
-          )}
-          {tab === 1 && (
-            <SpecialtiesTab specialties={activeFS.specialties}
-              onChange={specialties => updateActiveFS({ specialties })}
-              doctors={activeFS.doctors} facility={activeFS.facility} />
-          )}
-          {tab === 2 && (
-            <DoctorsTab doctors={activeFS.doctors} facility={activeFS.facility}
-              onUpdate={doctors => updateActiveFS({ doctors })}
-              specialties={activeFS.specialties} />
-          )}
-          {tab === 3 && (
-            <PlanTab facility={activeFS.facility} doctors={activeFS.doctors}
-              activeFacilityState={activeFS} allFacilityStates={appState.facilities}
-              planResult={activeFS.planResult}
-              onPlanResultChange={planResult => updateActiveFS({ planResult })} />
-          )}
-        </div>
+        {view === 'full' ? (
+          <div className="main-content">
+            <FullScheduleTab facilities={appState.facilities} />
+          </div>
+        ) : (
+          <div className="main-content" key={appState.activeFacilityId}>
+            {tab === 0 && (
+              <FacilityTab facility={activeFS.facility}
+                onChange={facility => updateActiveFS(fs => ({...fs, facility }))}
+                specialties={activeFS.specialties} />
+            )}
+            {tab === 1 && (
+              <SpecialtiesTab specialties={activeFS.specialties}
+                onChange={specialties => updateActiveFS({ specialties })}
+                doctors={activeFS.doctors} facility={activeFS.facility} />
+            )}
+            {tab === 2 && (
+              <DoctorsTab doctors={activeFS.doctors} facility={activeFS.facility}
+                onUpdate={doctors => updateActiveFS({ doctors })}
+                specialties={activeFS.specialties} />
+            )}
+            {tab === 3 && (
+              <PlanTab facility={activeFS.facility} doctors={activeFS.doctors}
+                activeFacilityState={activeFS} allFacilityStates={appState.facilities}
+                planResult={activeFS.planResult}
+                onPlanResultChange={planResult => updateActiveFS({ planResult })} />
+            )}
+          </div>
+        )}
       </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
