@@ -962,8 +962,12 @@ function PlanTab({ facility, doctors, activeFacilityState, allFacilityStates, pl
 }
 
 // ─── TAB: FULL SCHEDULE (ALL FACILITIES) ──────────
+function specLevelKey(specialty, level) {
+  return `${specialty || ''}\u0001${level || ''}`;
+}
+
 function FullScheduleTab({ facilities }) {
-  const { errorFacilities, rows } = useMemo(() => {
+  const { errorFacilities, baseRows } = useMemo(() => {
     const facilityErrorIds = new Set();
     const rowMap = new Map();
 
@@ -991,27 +995,89 @@ function FullScheduleTab({ facilities }) {
       });
     });
 
-    const rows = [...rowMap.values()].map(row => ({
+    const baseRows = [...rowMap.values()].map(row => ({
       ...row,
-      days: row.days.map(tiles => {
-        const sorted = [...tiles].sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
-        let collision = false;
-        for (let i = 1; i < sorted.length; i++) {
-          if (toMinutes(sorted[i].start) < toMinutes(sorted[i-1].end)) collision = true;
-        }
-        // A collision is caused jointly by every facility with a tile in this cell.
-        if (collision) sorted.forEach(t => facilityErrorIds.add(t.facilityId));
-        return { tiles: sorted, collision };
-      }),
+      days: row.days.map(tiles => [...tiles].sort((a, b) => toMinutes(a.start) - toMinutes(b.start))),
     }));
-    rows.sort((a, b) => (a.specialty || '').localeCompare(b.specialty || '') || (a.name || '').localeCompare(b.name || ''));
+
+    // Detect cross-facility collisions once on the full (unfiltered) data so the error banner stays accurate.
+    baseRows.forEach(row => {
+      row.days.forEach(tiles => {
+        for (let i = 1; i < tiles.length; i++) {
+          if (toMinutes(tiles[i].start) < toMinutes(tiles[i-1].end)) {
+            tiles.forEach(t => facilityErrorIds.add(t.facilityId));
+          }
+        }
+      });
+    });
 
     const errorFacilities = facilities
       .filter(fs => facilityErrorIds.has(fs.id))
       .map(fs => fs.facility.name || 'Bez nazwy');
 
-    return { errorFacilities, rows };
+    return { errorFacilities, baseRows };
   }, [facilities]);
+
+  const specLevelOptions = useMemo(() => {
+    const map = new Map();
+    baseRows.forEach(r => {
+      const key = specLevelKey(r.specialty, r.level);
+      if (!map.has(key)) map.set(key, { key, specialty: r.specialty, level: r.level });
+    });
+    return [...map.values()].sort((a, b) =>
+      (a.specialty || '').localeCompare(b.specialty || '') || (a.level || '').localeCompare(b.level || ''));
+  }, [baseRows]);
+
+  const facilityOptions = useMemo(() =>
+    facilities.map(fs => ({ id: fs.id, name: fs.facility.name || 'Bez nazwy' })),
+    [facilities]);
+
+  const [excludedSpecLevels, setExcludedSpecLevels] = useState(() => new Set());
+  const [excludedFacilityIds, setExcludedFacilityIds] = useState(() => new Set());
+  const [nameFilter, setNameFilter] = useState('');
+  const [sortBy, setSortBy] = useState('specialty'); // 'specialty' | 'name'
+
+  const toggleSpecLevel = (key) => {
+    setExcludedSpecLevels(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+  const toggleFacility = (id) => {
+    setExcludedFacilityIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const rows = useMemo(() => {
+    const nameQuery = normalizeName(nameFilter);
+    const filtered = baseRows
+      .filter(r => !excludedSpecLevels.has(specLevelKey(r.specialty, r.level)))
+      .filter(r => !nameQuery || normalizeName(r.name).includes(nameQuery))
+      .map(r => ({
+        ...r,
+        days: r.days.map(tiles => {
+          const visible = tiles.filter(t => !excludedFacilityIds.has(t.facilityId));
+          let collision = false;
+          for (let i = 1; i < visible.length; i++) {
+            if (toMinutes(visible[i].start) < toMinutes(visible[i-1].end)) collision = true;
+          }
+          return { tiles: visible, collision };
+        }),
+      }))
+      .filter(r => r.days.some(d => d.tiles.length > 0));
+
+    filtered.sort((a, b) => {
+      if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
+      return (a.specialty || '').localeCompare(b.specialty || '')
+        || (a.level || '').localeCompare(b.level || '')
+        || (a.name || '').localeCompare(b.name || '');
+    });
+    return filtered;
+  }, [baseRows, excludedSpecLevels, excludedFacilityIds, nameFilter, sortBy]);
 
   return (
     <div>
@@ -1021,10 +1087,65 @@ function FullScheduleTab({ facilities }) {
         </div>
       )}
 
+      <div className="card">
+        <div className="form-row" style={{alignItems:'flex-start'}}>
+          <div className="form-group">
+            <label className="form-label">Specjalizacja i poziom</label>
+            <div style={{marginBottom:6}}>
+              <button className="btn btn-sm" onClick={() => setExcludedSpecLevels(new Set())}>Zaznacz wszystkie</button>
+              <button className="btn btn-sm" style={{marginLeft:6}}
+                onClick={() => setExcludedSpecLevels(new Set(specLevelOptions.map(o => o.key)))}>Odznacz wszystkie</button>
+            </div>
+            <div className="checkbox-group">
+              {specLevelOptions.map(o => (
+                <span key={o.key}
+                  className={`checkbox-pill ${!excludedSpecLevels.has(o.key) ? 'checked' : ''}`}
+                  onClick={() => toggleSpecLevel(o.key)}>
+                  {o.specialty || '—'}{o.level ? ` · ${o.level}` : ''}
+                </span>
+              ))}
+              {specLevelOptions.length === 0 && <span style={{color:'var(--text-muted)',fontSize:'0.85rem'}}>Brak danych</span>}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Placówka</label>
+            <div style={{marginBottom:6}}>
+              <button className="btn btn-sm" onClick={() => setExcludedFacilityIds(new Set())}>Zaznacz wszystkie</button>
+              <button className="btn btn-sm" style={{marginLeft:6}}
+                onClick={() => setExcludedFacilityIds(new Set(facilityOptions.map(o => o.id)))}>Odznacz wszystkie</button>
+            </div>
+            <div className="checkbox-group">
+              {facilityOptions.map(o => (
+                <span key={o.id}
+                  className={`checkbox-pill ${!excludedFacilityIds.has(o.id) ? 'checked' : ''}`}
+                  onClick={() => toggleFacility(o.id)}>
+                  {o.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="form-row" style={{marginTop:16, marginBottom:0}}>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Imię i nazwisko zawiera</label>
+            <input type="text" value={nameFilter} onChange={e => setNameFilter(e.target.value)} placeholder="np. Kowalski" />
+          </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Sortuj wg</label>
+            <div className="checkbox-group">
+              <span className={`checkbox-pill ${sortBy==='specialty'?'checked':''}`} onClick={() => setSortBy('specialty')}>Specjalizacja</span>
+              <span className={`checkbox-pill ${sortBy==='name'?'checked':''}`} onClick={() => setSortBy('name')}>Imię i nazwisko</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {rows.length === 0 ? (
         <div className="empty-state">
           <div className="icon">📋</div>
-          <p>Brak zaplanowanego personelu.</p>
+          <p>{baseRows.length === 0 ? 'Brak zaplanowanego personelu.' : 'Brak wyników dla wybranych filtrów.'}</p>
         </div>
       ) : (
         <div className="card" style={{padding:0, overflow:'hidden'}}>
