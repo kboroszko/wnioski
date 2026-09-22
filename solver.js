@@ -295,8 +295,9 @@ export function checkCrossFacilityConflicts(activeFacilityState, allFacilityStat
         const otherNorm = normalizeName(otherDoc.name);
         if (otherNorm !== docNorm && levenshtein(otherNorm, docNorm) > 1) continue;
 
-        // Online work needs no commute, so the margin conflict doesn't apply
-        if (doc.remoteWork || otherDoc.remoteWork) continue;
+        // Online work needs no commute margin, but the doctor still can't work
+        // fully overlapping hours in two facilities at the same time.
+        const skipMargin = doc.remoteWork || otherDoc.remoteWork;
 
         // Same normalized name found in another facility — check each day
         for (let day = 0; day < 7; day++) {
@@ -316,18 +317,20 @@ export function checkCrossFacilityConflicts(activeFacilityState, allFacilityStat
 
           if (activeEffective.length === 0 || otherEffective.length === 0) continue;
 
-          // Expand other facility blocks by margin on each side
+          // Expand other facility blocks by margin on each side (no margin for online work)
+          const margin = skipMargin ? 0 : MARGIN_MINUTES;
           const expanded = otherEffective.map(b => ({
-            start: toTimeString(Math.max(0, toMinutes(b.start) - MARGIN_MINUTES)),
-            end: toTimeString(Math.min(24 * 60, toMinutes(b.end) + MARGIN_MINUTES)),
+            start: toTimeString(Math.max(0, toMinutes(b.start) - margin)),
+            end: toTimeString(Math.min(24 * 60, toMinutes(b.end) + margin)),
           }));
 
           const overlap = intersectIntervals(activeEffective, expanded);
           if (overlap.length > 0) {
             const otherName = otherFac.name || 'Bez nazwy';
             const otherBlocks = otherEffective.map(b => `${b.start}–${b.end}`).join(', ');
+            const reason = skipMargin ? 'nakładające się godziny pracy' : 'wymagany 30 min margines';
             errors.push(
-              `Konflikt: „${doc.name}" pracuje w ${DAYS[day]} w innej placówce (${otherName}: ${otherBlocks}) — wymagany 30 min margines`
+              `Konflikt: „${doc.name}" pracuje w ${DAYS[day]} w innej placówce (${otherName}: ${otherBlocks}) — ${reason}`
             );
           }
         }

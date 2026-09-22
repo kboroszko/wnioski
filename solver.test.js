@@ -881,4 +881,34 @@ describe('checkCrossFacilityConflicts', () => {
     const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
     expect(errors).toEqual([]);
   });
+
+  test('online worker skips the 30 min margin requirement', () => {
+    // Facility A: 08:00-12:00, Facility B: 12:15-16:00 — gap under margin
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '12:15', end: '16:00' }];
+
+    const doc1 = { ...makeDoctor('Jan Kowalski', 'General', blocksA), remoteWork: true };
+    const doc2 = makeDoctor('Jan Kowalski', 'General', blocksB);
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors).toEqual([]);
+  });
+
+  test('online worker still conflicts when actually double-booked at the same time', () => {
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '10:00', end: '14:00' }];
+
+    const doc1 = { ...makeDoctor('Jan Kowalski', 'General', blocksA), remoteWork: true };
+    const doc2 = makeDoctor('Jan Kowalski', 'General', blocksB);
+    const fs1 = makeFacilityState('fs1', {}, [doc1]);
+    const fs2 = makeFacilityState('fs2', {}, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('Konflikt');
+  });
 });
