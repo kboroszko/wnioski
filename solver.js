@@ -291,13 +291,16 @@ export function checkCrossFacilityConflicts(activeFacilityState, allFacilityStat
 
     for (const otherFS of otherFacilities) {
       const otherFac = otherFS.facility;
+      // Same-building links are kept as a fully-connected clique by the UI, so a direct check suffices
+      const sameBuilding = (activeFacility.sameBuildingIds || []).includes(otherFac.id) ||
+        (otherFac.sameBuildingIds || []).includes(activeFacility.id);
       for (const otherDoc of otherFS.doctors) {
         const otherNorm = normalizeName(otherDoc.name);
         if (otherNorm !== docNorm && levenshtein(otherNorm, docNorm) > 1) continue;
 
-        // Online work needs no commute margin, but the doctor still can't work
-        // fully overlapping hours in two facilities at the same time.
-        const skipMargin = doc.remoteWork || otherDoc.remoteWork;
+        // Online work and same-building facilities need no commute margin, but the
+        // doctor still can't work fully overlapping hours in two facilities at once.
+        const skipMargin = doc.remoteWork || otherDoc.remoteWork || sameBuilding;
 
         // Same normalized name found in another facility — check each day
         for (let day = 0; day < 7; day++) {

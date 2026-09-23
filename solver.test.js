@@ -911,4 +911,48 @@ describe('checkCrossFacilityConflicts', () => {
     expect(errors.length).toBeGreaterThan(0);
     expect(errors[0]).toContain('Konflikt');
   });
+
+  test('facilities in the same building skip the 30 min margin requirement', () => {
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '12:15', end: '16:00' }];
+
+    const doc1 = makeDoctor('Jan Kowalski', 'General', blocksA);
+    const doc2 = makeDoctor('Jan Kowalski', 'General', blocksB);
+    const fs1 = makeFacilityState('fs1', { id: 'fac-a', sameBuildingIds: ['fac-b'] }, [doc1]);
+    const fs2 = makeFacilityState('fs2', { id: 'fac-b' }, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors).toEqual([]);
+  });
+
+  test('facilities in the same building still conflict when actually double-booked', () => {
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '10:00', end: '14:00' }];
+
+    const doc1 = makeDoctor('Jan Kowalski', 'General', blocksA);
+    const doc2 = makeDoctor('Jan Kowalski', 'General', blocksB);
+    const fs1 = makeFacilityState('fs1', { id: 'fac-a', sameBuildingIds: ['fac-b'] }, [doc1]);
+    const fs2 = makeFacilityState('fs2', { id: 'fac-b' }, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('Konflikt');
+  });
+
+  test('same-building link is recognized from either side', () => {
+    const blocksA = {};
+    for (let i = 0; i < 5; i++) blocksA[i] = [{ start: '08:00', end: '12:00' }];
+    const blocksB = {};
+    for (let i = 0; i < 5; i++) blocksB[i] = [{ start: '12:15', end: '16:00' }];
+
+    const doc1 = makeDoctor('Jan Kowalski', 'General', blocksA);
+    const doc2 = makeDoctor('Jan Kowalski', 'General', blocksB);
+    // Only the other facility declares the link back to fac-a
+    const fs1 = makeFacilityState('fs1', { id: 'fac-a' }, [doc1]);
+    const fs2 = makeFacilityState('fs2', { id: 'fac-b', sameBuildingIds: ['fac-a'] }, [doc2]);
+    const errors = checkCrossFacilityConflicts(fs1, [fs1, fs2]);
+    expect(errors).toEqual([]);
+  });
 });

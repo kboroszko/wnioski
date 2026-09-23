@@ -21,6 +21,28 @@ function uuid() {
   return 'xxxx-xxxx'.replace(/x/g, () => ((Math.random()*16)|0).toString(16));
 }
 
+// The UI keeps sameBuildingIds as a fully-connected clique per group, but this
+// resolves transitive links defensively (e.g. for data loaded from older saves).
+function getConnectedFacilityIds(facilityId, facilities) {
+  const adj = new Map();
+  facilities.forEach(f => adj.set(f.id, new Set(f.sameBuildingIds || [])));
+  facilities.forEach(f => {
+    (f.sameBuildingIds || []).forEach(otherId => {
+      if (adj.has(otherId)) adj.get(otherId).add(f.id);
+    });
+  });
+  const visited = new Set([facilityId]);
+  const queue = [facilityId];
+  while (queue.length) {
+    const cur = queue.shift();
+    (adj.get(cur) || new Set()).forEach(n => {
+      if (!visited.has(n)) { visited.add(n); queue.push(n); }
+    });
+  }
+  visited.delete(facilityId);
+  return visited;
+}
+
 // ─── DEFAULT STATE ─────────────────────────────────
 function makeDefaultFacility() {
   return {
@@ -34,6 +56,7 @@ function makeDefaultFacility() {
     })),
     specialRequirements: [],
     hourQuotas: [],
+    sameBuildingIds: [],
   };
 }
 
@@ -66,6 +89,7 @@ function migrateFacility(facility) {
     specialties: q.specialties ?? (q.specialty ? [{ name: q.specialty, level: q.level ?? null }] : []),
     maxHoursPerWeek: q.maxHoursPerWeek != null ? q.maxHoursPerWeek : 0,
   }));
+  facility.sameBuildingIds = facility.sameBuildingIds || [];
   return facility;
 }
 
@@ -509,7 +533,13 @@ function LevelAdder({ onAdd }) {
 }
 
 // ─── TAB: FACILITY SETUP ──────────────────────────
-function FacilityTab({ facility, onChange, specialties }) {
+function FacilityTab({ facility, onChange, specialties, otherFacilities, allFacilities, onSameBuildingChange }) {
+  // transitive: A-B and B-C implies A-C, so also show indirectly linked facilities as connected
+  const connected = useMemo(() => getConnectedFacilityIds(facility.id, allFacilities), [facility.id, allFacilities]);
+  const toggleSameBuilding = (id) => {
+    onSameBuildingChange(id, !connected.has(id));
+  };
+
   return (
     <div>
       <div className="card">
@@ -529,6 +559,24 @@ function FacilityTab({ facility, onChange, specialties }) {
           </div>
         </div>
       </div>
+
+      {otherFacilities.length > 0 && (
+        <div className="card">
+          <div className="card-title"><span className="icon">🏢</span> Ten sam budynek</div>
+          <p style={{fontSize:'0.82rem',color:'var(--text-muted)',marginBottom:14}}>
+            Zaznacz placówki znajdujące się w tym samym budynku — nie będzie wymagany margines czasu na dojazd między nimi.
+          </p>
+          <div className="checkbox-group">
+            {otherFacilities.map(o => (
+              <span key={o.id}
+                className={`checkbox-pill ${connected.has(o.id) ? 'checked' : ''}`}
+                onClick={() => toggleSameBuilding(o.id)}>
+                {o.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-title"><span className="icon">🕐</span> Godziny otwarcia</div>
@@ -1287,6 +1335,7 @@ function App() {
       clone.id = newId;
       clone.facility.id = uuid();
       clone.facility.name = (clone.facility.name || 'Bez nazwy') + ' (kopia)';
+      clone.facility.sameBuildingIds = []; // links aren't reciprocated by other facilities, so drop them
       return {
         ...prev,
         facilities: [...prev.facilities, clone],
@@ -1299,11 +1348,55 @@ function App() {
   const deleteFacility = (id) => {
     setAppState(prev => {
       if (prev.facilities.length <= 1) return prev;
-      const remaining = prev.facilities.filter(f => f.id !== id);
+      const removedFacId = prev.facilities.find(f => f.id === id)?.facility.id;
+      const remaining = prev.facilities
+        .filter(f => f.id !== id)
+        .map(fs => (fs.facility.sameBuildingIds || []).includes(removedFacId)
+          ? { ...fs, facility: { ...fs.facility, sameBuildingIds: fs.facility.sameBuildingIds.filter(x => x !== removedFacId) } }
+          : fs
+        );
       return {
         ...prev,
         facilities: remaining,
         activeFacilityId: prev.activeFacilityId === id ? remaining[0].id : prev.activeFacilityId,
+      };
+    });
+  };
+
+  // Same-building groups are stored as a fully-connected clique, so linking two
+  // facilities merges their whole groups, and unlinking removes one facility from its group.
+  const updateSameBuilding = (targetFacilityId, connect) => {
+    setAppState(prev => {
+      const facilities = prev.facilities.map(fs => fs.facility);
+      const activeFacId = prev.facilities.find(f => f.id === prev.activeFacilityId).facility.id;
+
+      if (connect) {
+        const group = new Set([activeFacId, targetFacilityId]);
+        getConnectedFacilityIds(activeFacId, facilities).forEach(id => group.add(id));
+        getConnectedFacilityIds(targetFacilityId, facilities).forEach(id => group.add(id));
+        return {
+          ...prev,
+          facilities: prev.facilities.map(fs => {
+            const facId = fs.facility.id;
+            if (!group.has(facId)) return fs;
+            return { ...fs, facility: { ...fs.facility, sameBuildingIds: [...group].filter(id => id !== facId) } };
+          }),
+        };
+      }
+
+      // disconnect: the active facility leaves its entire group
+      return {
+        ...prev,
+        facilities: prev.facilities.map(fs => {
+          const facId = fs.facility.id;
+          if (facId === activeFacId) {
+            return { ...fs, facility: { ...fs.facility, sameBuildingIds: [] } };
+          }
+          if ((fs.facility.sameBuildingIds || []).includes(activeFacId)) {
+            return { ...fs, facility: { ...fs.facility, sameBuildingIds: fs.facility.sameBuildingIds.filter(x => x !== activeFacId) } };
+          }
+          return fs;
+        }),
       };
     });
   };
@@ -1472,7 +1565,12 @@ function App() {
             {tab === 0 && (
               <FacilityTab facility={activeFS.facility}
                 onChange={facility => updateActiveFS(fs => ({...fs, facility }))}
-                specialties={activeFS.specialties} />
+                specialties={activeFS.specialties}
+                otherFacilities={appState.facilities
+                  .filter(fs => fs.facility.id !== activeFS.facility.id)
+                  .map(fs => ({ id: fs.facility.id, name: fs.facility.name || 'Bez nazwy' }))}
+                allFacilities={appState.facilities.map(fs => fs.facility)}
+                onSameBuildingChange={updateSameBuilding} />
             )}
             {tab === 1 && (
               <SpecialtiesTab specialties={activeFS.specialties}
